@@ -56,12 +56,10 @@ export default function App() {
 
   const [gameState, setGameState] = useState('READY'); 
 
-  // 🎵 로컬 오디오 시스템 스위치
   const bgmRef = useRef(null);
   const [isBgmOn, setIsBgmOn] = useState(false);
   const [isSfxOn, setIsSfxOn] = useState(true); 
 
-  // 방장이 다시하기를 눌러 방 상태를 READY로 리셋했는지 알려주는 상태
   const [isRoomResetByHost, setIsRoomResetByHost] = useState(false);
 
   const seedRef = useRef(1);
@@ -74,7 +72,6 @@ export default function App() {
   const currentTargetRef = useRef(1);
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
 
-  // 🎵 인게임 전용 플레이 통제 로직 구현
   useEffect(() => {
     if (!bgmRef.current) {
       bgmRef.current = new Audio('./bgm.mp3');
@@ -91,7 +88,6 @@ export default function App() {
     }
   }, [gameState, isBgmOn, screen]);
 
-  // 🎵 효과음 제어
   const playSound = (type) => {
     if (!isSfxOn) return; 
     try {
@@ -114,7 +110,6 @@ export default function App() {
     return seedRef.current / m;
   };
 
-  // 🔄 [버그 수정 완료] 완벽한 카드 스와핑 셔플 문법 정석 복구
   const shuffleArray = (array) => {
     let arr = [...array];
     for (let i = arr.length - 1; i > 0; i--) {
@@ -369,18 +364,9 @@ export default function App() {
         setIsRoomResetByHost(true); 
       }
 
-      if (data.gameState === 'STARTING' && !showCountdown) {
-        setCurrentTarget(1);
-        currentTargetRef.current = 1; 
-        elapsedSecondsRef.current = 0;
-        myFinalTimeRef.current = null;
-        setDisplayTime('0.00');
-        setTimerLabel('시간:');
-        setShowCountdown(false);
-        setShowResult(false);
-        setGameState('READY');
-        setIsRoomResetByHost(false);
-        
+      // 💡 [핵심 버그 수정부] 내 상태가 'READY'일 때만 단 1회 실행하도록 가드 레일 설치!
+      // 이렇게 하면 게임 실행 중 타이머 업데이트로 인해 발생하던 무한 리셋 버그가 완벽 차단됩니다.
+      if (data.gameState === 'STARTING' && gameState === 'READY' && !showCountdown) {
         seedRef.current = data.sharedSeed; 
         generateInitialGameData(data.sharedSeed); 
         startSyncLoop(data.schedCountdown, data.schedStart); 
@@ -432,7 +418,7 @@ export default function App() {
     });
 
     return () => unsubscribe(); 
-  }, [gameMode, roomCode, screen, gameState, showResult]);
+  }, [gameMode, roomCode, screen, gameState, showResult, showCountdown]); // 의존성 배열 안정화
 
   const handleGameEnd = () => {
     clearInterval(mainIntervalRef.current);
@@ -446,6 +432,21 @@ export default function App() {
       return;
     }
 
+    // 🧹 다시하기 시 남아있는 로컬 데이터와 타이머를 완벽히 소거 (재장전 준비)
+    clearInterval(mainIntervalRef.current);
+    setCurrentTarget(1);
+    currentTargetRef.current = 1;
+    elapsedSecondsRef.current = 0;
+    myFinalTimeRef.current = null;
+    setDisplayTime('0.00');
+    setTimerLabel('시간:');
+    setShowCountdown(false);
+    setShowResult(false);
+    setBoard(Array(9).fill(null));
+    setLeaderboard([]);
+    setGameState('READY');
+    setIsRoomResetByHost(false);
+
     if (isHost) {
       await update(ref(db, `rooms/${roomCode}`), {
         gameState: 'READY',
@@ -457,19 +458,12 @@ export default function App() {
         timer: '0.00',
         board: JSON.stringify(Array(9).fill(null))
       });
-
-      setShowResult(false);
-      setGameState('READY');
     } else {
       await update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         target: 1,
         timer: '0.00',
         board: JSON.stringify(Array(9).fill(null))
       });
-
-      setShowResult(false);
-      setGameState('READY');
-      setIsRoomResetByHost(false);
     }
   };
 
@@ -621,7 +615,10 @@ export default function App() {
             <div className="room-tag" style={{backgroundColor: gameMode === 'SINGLE' ? '#ff9f43' : isHost ? '#007bff' : '#e83e8c'}}>
               {gameMode === 'SINGLE' ? `${nickname} (싱글)` : `${nickname} (PLAYER ${myPlayerNum}${isHost ? '/방장' : ''})`}
             </div>
-            {isHost && gameState === 'READY' && <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>}
+            {/* 💡 [핵심 버그 수정부] 방장이어도 오직 'READY' 상태일 때, 그리고 모달/카운트다운이 없을 때만 버튼 표시! */}
+            {isHost && gameState === 'READY' && !showCountdown && !showResult && (
+              <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>
+            )}
           </div>
 
           <div className="game-layout">
