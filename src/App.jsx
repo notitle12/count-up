@@ -56,6 +56,11 @@ export default function App() {
 
   const [gameState, setGameState] = useState('READY'); 
 
+  // 🎵 오디오 시스템 및 스위치 전용 상태 (LOBBY/GAME 화면 상관없이 최상단 고정 배치용)
+  const bgmRef = useRef(null);
+  const [isBgmOn, setIsBgmOn] = useState(false);
+  const [isSfxOn, setIsSfxOn] = useState(true); // 💡 효과음 스위치 추가 (기본값 ON)
+
   const seedRef = useRef(1);
   const myFinalTimeRef = useRef(null);
   const globalStartTimeRef = useRef(0);
@@ -65,6 +70,38 @@ export default function App() {
   
   const currentTargetRef = useRef(1);
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
+
+  // 🎵 효과음 재생 함수 (스위치가 켜져있을 때만 소리 나도록 조건 제어)
+  const playSound = (type) => {
+    if (!isSfxOn) return; // 💡 효과음 스위치가 OFF(false)면 함수 즉시 종료!
+    try {
+      const audioPath = type === 'success' ? './click.mp3' : './wrong.mp3';
+      const sound = new Audio(audioPath);
+      sound.volume = type === 'success' ? 0.4 : 0.6; 
+      sound.play();
+    } catch (e) {
+      console.log("오디오 재생 실패:", e);
+    }
+  };
+
+  // 🎵 BGM 토글 함수
+  const toggleBgm = () => {
+    if (!bgmRef.current) {
+      bgmRef.current = new Audio('./bgm.mp3');
+      bgmRef.current.loop = true; 
+      bgmRef.current.volume = 0.2; 
+    }
+
+    if (isBgmOn) {
+      bgmRef.current.pause();
+      setIsBgmOn(false);
+    } else {
+      bgmRef.current.play().catch(() => {
+        alert("브라우저 보안으로 인해 화면을 클릭한 후 음악을 켤 수 있습니다.");
+      });
+      setIsBgmOn(true);
+    }
+  };
 
   const seededRandom = () => {
     const a = 1664525; const c = 1013904223; const m = Math.pow(2, 32);
@@ -254,6 +291,7 @@ export default function App() {
     if (myFinalTimeRef.current !== null) return;
 
     if (value === currentTarget) {
+      playSound('success'); 
       const newBoard = [...board];
       
       if (nextNumbersPoolRef.current.length > 0) {
@@ -295,12 +333,11 @@ export default function App() {
         }
       }
     } else {
-      // 🔄 [수정완료] 싱글/멀티 공통으로 오답 페널티 부여 구조 확장
+      playSound('wrong'); 
       if (gameMode === 'SINGLE') {
-        elapsedSecondsRef.current += 5; // 싱글은 기존 5초 유지
+        elapsedSecondsRef.current += 5; 
       } else {
-        elapsedSecondsRef.current += 3; // 멀티는 요청하신 대로 3초 패널티 추가
-        // 실시간으로 늘어난 시간을 파이어베이스 데이터베이스에 즉시 업데이트 송신
+        elapsedSecondsRef.current += 3; 
         const now = Date.now();
         const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
         update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
@@ -427,7 +464,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showCountdown, board, currentTarget, screen, gameState]);
 
-  // 🔄 [수정완료] 결과 창 출력용 점수 포맷 가이드 가동 - 완주 실패 시 (탈락) 처리
   const formatFinalScoreDisplay = (player) => {
     let rawTimer = parseFloat(player.timer);
     const countBroken = player.target > MAX_NUMBER ? MAX_NUMBER : player.target - 1;
@@ -435,7 +471,6 @@ export default function App() {
     if (isNaN(rawTimer) || rawTimer > 1000000 || rawTimer === 0) {
       return `${countBroken}개 제거 (탈락)`;
     }
-    // MAX_NUMBER를 다 깨야 완주, 아니면 타일 개수 노출 후 탈락 표기 조건 적용
     return player.target > MAX_NUMBER ? `${rawTimer.toFixed(2)}초 (완주)` : `${countBroken}개 제거 (${rawTimer.toFixed(2)}초) [탈락]`;
   };
 
@@ -466,7 +501,48 @@ export default function App() {
         </div>
       )}
 
-      <h1>Count-Up</h1>
+      {/* 🎵 [수정완료] 홈 화면(최상단 헤더)에 어울리는 BGM / SFX 개별 토글 컨트롤 타워 패키징 */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+        <h1 style={{ margin: 0, width: 'auto' }}>Count-Up</h1>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {/* 📻 배경음악 온오프 */}
+          <button 
+            onClick={toggleBgm} 
+            style={{
+              padding: '6px 14px',
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              borderRadius: '20px',
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: isBgmOn ? '#007bff' : '#e2e8f0',
+              color: isBgmOn ? 'white' : '#4a5568',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {isBgmOn ? '🎵 BGM ON' : '🔇 BGM OFF'}
+          </button>
+          {/* 🔊 효과음 온오프 */}
+          <button 
+            onClick={() => setIsSfxOn(!isSfxOn)} 
+            style={{
+              padding: '6px 14px',
+              fontSize: '0.85rem',
+              fontWeight: 'bold',
+              borderRadius: '20px',
+              border: 'none',
+              cursor: 'pointer',
+              backgroundColor: isSfxOn ? '#28a745' : '#e2e8f0',
+              color: isSfxOn ? 'white' : '#4a5568',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {isSfxOn ? '🔊 SFX ON' : '🔇 SFX OFF'}
+          </button>
+        </div>
+      </div>
 
       {screen === 'LOBBY' ? (
         <div id="lobby-screen">
