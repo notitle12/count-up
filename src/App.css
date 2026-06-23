@@ -622,3 +622,37 @@ h1 {
 .audio-toggle-btn:hover {
   transform: translateY(-1px);
 }
+
+/* 📱 모바일 화면 (화면 너비 768px 이하) 전용 설정 */
+@media (max-width: 768px) {
+  /* 1. 숫자판 전체 틀을 화면 가로의 90%만 차지하도록 수정 */
+  .board { 
+    width: 90%; /* 💡 핵심 수정 1: 100%에서 90%로 크기 축소 (더 작게 원하시면 80%로 변경) */
+    margin: 0 auto; /* 💡 핵심 수정 2: 크기가 줄어들었으니 화면 가운데로 오도록 중앙 정렬 */
+    max-width: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr); /* 가로 공간을 5등분 */
+    gap: 8px; /* 버튼 사이의 간격 */
+    padding: 15px; /* 화면 양끝과 버튼 사이의 여백 */
+    box-sizing: border-box;
+  }
+
+  /* 2. 개별 숫자 버튼 설정 (이 부분은 건드릴 필요 없음) */
+  .board button {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1; /* 가로세로 비율을 1:1 정사각형으로 강제 고정 */
+    margin: 0; 
+    
+    /* 모바일 터치 환경에 맞춘 글씨 크기 및 정렬 */
+    font-size: 1.5rem; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* (선택) 모바일에서는 터치 시 호버 효과가 남는 버그 방지 */
+  .board button:active {
+    transform: scale(0.95); /* 눌렀을 때 살짝 작아지는 효과만 남김 */
+  }
+}
