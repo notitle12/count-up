@@ -73,7 +73,6 @@ export default function App() {
   const currentTargetRef = useRef(1);
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
   
-  // 💡 [신규 레프] 파이어베이스 통신 렉에 구애받지 않는 독립 초읽기용 타임스탬프 저장소
   const finishDeadlineRef = useRef(null);
 
   useEffect(() => {
@@ -265,6 +264,8 @@ export default function App() {
     globalStartTimeRef.current = gameTime;
     clearInterval(mainIntervalRef.current);
 
+    let lastDbUpdateTime = 0; // 💡 통신 렉 최적화 방어용 변수 추가
+
     mainIntervalRef.current = setInterval(() => {
       const now = Date.now();
 
@@ -279,7 +280,6 @@ export default function App() {
         setShowCountdown(false);
         setGameState('RUNNING'); 
 
-        // 💡 [버그 완벽 수정부] 파이어베이스 통신 상태와 100% 무관하게 내 컴퓨터 시계(now) 기준으로 초당 25번 연산 체크!
         if (finishDeadlineRef.current) {
           const left = (finishDeadlineRef.current - now) / 1000;
           if (left > 0) {
@@ -295,12 +295,16 @@ export default function App() {
         if (myFinalTimeRef.current === null) {
           const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
           const formatted = exactElapsed.toFixed(2);
+          
+          // 로컬 화면은 초당 25번 부드럽게 렌더링 진행
           setDisplayTime(formatted);
 
-          if (gameMode === 'MULTI') {
+          // 💡 [핵심 최적화 구간] 파이어베이스에는 0.5초(500ms)에 딱 1번만 타이머를 보냅니다! (서버 과부하 원천 차단)
+          if (gameMode === 'MULTI' && now - lastDbUpdateTime > 500) {
             update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
               timer: formatted
             });
+            lastDbUpdateTime = now; // 시간 갱신
           }
         }
       }
@@ -360,6 +364,7 @@ export default function App() {
       if (gameMode === 'MULTI') {
         const now = Date.now();
         const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
+        // 💡 틀렸을 때는 순위표에 내 초가 늘어난 것을 즉시 보여주기 위해 예외적으로 통신 강제 업데이트
         update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
           timer: exactElapsed.toFixed(2)
         });
@@ -382,7 +387,6 @@ export default function App() {
         setGlobalGameState(data.gameState);
       }
 
-      // 💡 [버그 완벽 수정부] 파이어베이스 마감시간 변동 노드를 실시간 메모리 레프(Ref)에 즉시 투영 교체
       if (data.finishDeadline) {
         finishDeadlineRef.current = data.finishDeadline;
       } else {
@@ -457,7 +461,7 @@ export default function App() {
     setBoard(Array(9).fill(null));
     setLeaderboard([]);
     setGameState('READY');
-    finishDeadlineRef.current = null; // 💡 로컬 데드라인 레프 안전 초기화
+    finishDeadlineRef.current = null; 
 
     if (isHost) {
       await update(ref(db, `rooms/${roomCode}`), {
