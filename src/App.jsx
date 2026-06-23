@@ -14,7 +14,8 @@ const firebaseConfig = {
   storageBucket: "count-up-9fdb4.firebasestorage.app",
   messagingSenderId: "292246722779",
   appId: "1:292246722779:web:503faf95d835327ea1d4fe",
-  measurementId: "G-YGVZLGC7Z5"
+  measurementId: "G-YGVZLGC7Z5",
+  databaseURL: "https://count-up-9fdb4-default-rtdb.firebaseio.com/"
 };
 
 // 💡 파이어베이스 및 데이터베이스 인프라 가동
