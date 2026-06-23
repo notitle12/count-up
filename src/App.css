@@ -677,6 +677,8 @@ h1 {
     touch-action: manipulation; 
     -webkit-tap-highlight-color: transparent; /* 터치 시 파란 박스 방지 */
     user-select: none;
+      /* 추가 */
+    pointer-events: auto;
   }
 
   /* 4. 카운트다운 텍스트 위치 고정 */

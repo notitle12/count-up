@@ -599,6 +599,7 @@ export default function App() {
       <div key={idx} 
         className={`tile ${val === null ? 'empty' : ''} ${wrongTileIdx === idx ? 'wrong' : ''} ${activeTileIdx === idx ? 'active' : ''}`}
         onClick={() => val !== null && handleTileClick(idx, val)}
+        onTouchStart={() => val !== null && handleTileClick(idx, val)}
       >
         {val}
         {val !== null && <span className="key-hint">N{hintNumbers[idx]}</span>}
