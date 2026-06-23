@@ -61,7 +61,7 @@ export default function App() {
   const [isBgmOn, setIsBgmOn] = useState(false);
   const [isSfxOn, setIsSfxOn] = useState(true); 
 
-  // 🔄 [수정 완료] 방장이 다시하기를 눌러 방을 READY로 리셋했는지 알려주는 상태
+  // 방장이 다시하기를 눌러 방 상태를 READY로 리셋했는지 알려주는 상태
   const [isRoomResetByHost, setIsRoomResetByHost] = useState(false);
 
   const seedRef = useRef(1);
@@ -114,7 +114,7 @@ export default function App() {
     return seedRef.current / m;
   };
 
-  // 🔄 [버그 수정 완료] 완벽한 무작위 카드 셔플 알고리즘 복구 완료
+  // 🔄 [버그 수정 완료] 완벽한 카드 스와핑 셔플 문법 정석 복구
   const shuffleArray = (array) => {
     let arr = [...array];
     for (let i = arr.length - 1; i > 0; i--) {
@@ -206,7 +206,7 @@ export default function App() {
     setShowResult(false);
     setAllPlayerBoards({});
     setGameState('READY'); 
-    setIsRoomResetByHost(false); // 재경기 권한 리셋
+    setIsRoomResetByHost(false);
 
     if (mode === 'SINGLE') {
       seedRef.current = Date.now();
@@ -365,13 +365,11 @@ export default function App() {
       const data = snapshot.val();
       if (!data) return;
 
-      // 🔄 [수정 완료] 방장이 '다시하기'를 눌러 방 상태를 READY로 초기화했음을 실시간 인지
       if (data.gameState === 'READY' && showResult) {
-        setIsRoomResetByHost(true); // 게스트들에게 다시하기 버튼 점등!
+        setIsRoomResetByHost(true); 
       }
 
       if (data.gameState === 'STARTING' && !showCountdown) {
-        // 전원 인게임 변수 리셋 및 동시 강제 스타트 진입
         setCurrentTarget(1);
         currentTargetRef.current = 1; 
         elapsedSecondsRef.current = 0;
@@ -442,7 +440,6 @@ export default function App() {
     setShowResult(true);
   };
 
-  // 🔄 [수정 완료] 유저가 요청하신 순수하고 완벽한 다시하기 시퀀스 구현
   const handleExecuteReplay = async () => {
     if (gameMode === 'SINGLE') {
       initGame('SINGLE');
@@ -450,13 +447,11 @@ export default function App() {
     }
 
     if (isHost) {
-      // 👑 방장: 코드 및 멤버를 그대로 유지한 채, 방 상태를 전역 READY실로 리셋시킴
       await update(ref(db, `rooms/${roomCode}`), {
         gameState: 'READY',
         finishDeadline: null
       });
       
-      // 내 개인 슬롯 데이터도 즉시 초기화
       await update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         target: 1,
         timer: '0.00',
@@ -466,7 +461,6 @@ export default function App() {
       setShowResult(false);
       setGameState('READY');
     } else {
-      // 👥 게스트: 활성화된 다시하기를 클릭하면 대기실 화면으로 동시 안착 및 슬롯 리셋
       await update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         target: 1,
         timer: '0.00',
@@ -558,15 +552,12 @@ export default function App() {
               )}
             </div>
             
-            {/* 🔄 [수정 완료] 유저 요구 명세 맞춤형 다시하기 직관 제어 보드 */}
             <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
               {gameMode === 'SINGLE' ? (
                 <button className="lobby-btn btn-single" style={{ width: '100%' }} onClick={handleExecuteReplay}>다시하기</button>
               ) : isHost ? (
-                // 👑 방장은 언제든 바로 일반 파란색 [다시하기] 버튼을 누를 수 있고, 누르면 기존 코드 유지된 채 즉시 대기실행!
                 <button className="lobby-btn btn-create" style={{ width: '100%' }} onClick={handleExecuteReplay}>다시하기</button>
               ) : (
-                // 👥 게스트는 처음엔 회색 비활성화 -> 방장이 누르면 파란색 활성화 버튼 전환
                 <button 
                   className={`lobby-btn ${isRoomResetByHost ? 'btn-create' : ''}`} 
                   style={{ 
