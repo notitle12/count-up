@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 
-// 💡 파이어베이스 핵심 라이브러리 로드
+// 💡 파이어베이스 라이브러리 (유령 방지 onDisconnect 및 안티치트 serverTimestamp 추가)
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getDatabase, ref, set, onValue, remove, update } from "firebase/database";
+import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
 
-// 💡 유저님이 발급받으신 고유 파이어베이스 설정값 주입
 const firebaseConfig = {
   apiKey: "AIzaSyDJcc8JRs8xLqNaEMmwuomTSjLlExxUC3I",
   authDomain: "count-up-9fdb4.firebaseapp.com",
@@ -18,16 +17,19 @@ const firebaseConfig = {
   databaseURL: "https://count-up-9fdb4-default-rtdb.firebaseio.com/"
 };
 
-// 💡 파이어베이스 및 데이터베이스 인프라 가동
 const app = initializeApp(firebaseConfig);
 const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 const db = getDatabase(app);
 
 const MAX_NUMBER = 50;
-
 const numpadMap = {'Numpad7': 0, 'Numpad8': 1, 'Numpad9': 2, 'Numpad4': 3, 'Numpad5': 4, 'Numpad6': 5, 'Numpad1': 6, 'Numpad2': 7, 'Numpad3': 8};
 const regularKeyMap = {'Digit7': 0, 'Digit8': 1, 'Digit9': 2, 'Digit4': 3, 'Digit5': 4, 'Digit6': 5, 'Digit1': 6, 'Digit2': 7, 'Digit3': 8};
 const hintNumbers = [7, 8, 9, 4, 5, 6, 1, 2, 3];
+
+const clickAudioBase = typeof Audio !== "undefined" ? new Audio('./click.mp3') : null;
+const wrongAudioBase = typeof Audio !== "undefined" ? new Audio('./wrong.mp3') : null;
+if (clickAudioBase) clickAudioBase.preload = 'auto';
+if (wrongAudioBase) wrongAudioBase.preload = 'auto';
 
 export default function App() {
   const [screen, setScreen] = useState('LOBBY'); 
@@ -36,8 +38,6 @@ export default function App() {
   const [joinInput, setJoinInput] = useState('');
   const [myPlayerNum, setMyPlayerNum] = useState(1);
   const [isHost, setIsHost] = useState(false);
-  
-  // 💡 [버그 수정부] 입장 버튼 광클 시 발생하는 중복 유령 플레이어 방지 락(Lock)
   const [isJoining, setIsJoining] = useState(false);
   
   const [nickname, setNickname] = useState(() => {
@@ -46,6 +46,8 @@ export default function App() {
 
   const [currentTarget, setCurrentTarget] = useState(1);
   const [board, setBoard] = useState(Array(9).fill(null));
+  
+  // 타이머 렌더링 최적화를 위한 상태 분리
   const [displayTime, setDisplayTime] = useState('0.00');
   const [timerLabel, setTimerLabel] = useState('시간:');
   
@@ -74,7 +76,6 @@ export default function App() {
   const currentTargetRef = useRef(1);
   const finishDeadlineRef = useRef(null);
   
-  // 💡 [버그 수정부] 키보드 입력 지연(Stale State)을 완벽 차단하기 위한 보드 실시간 거울 메모리
   const boardRef = useRef(Array(9).fill(null));
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
 
@@ -101,18 +102,16 @@ export default function App() {
   const playSound = (type) => {
     if (!isSfxOn) return; 
     try {
-      const audioPath = type === 'success' ? './click.mp3' : './wrong.mp3';
-      const sound = new Audio(audioPath);
+      const baseSound = type === 'success' ? clickAudioBase : wrongAudioBase;
+      if (!baseSound) return;
+      
+      const sound = baseSound.cloneNode();
       sound.volume = type === 'success' ? 0.4 : 0.6; 
-      sound.play();
-    } catch (e) {
-      console.log("오디오 재생 실패:", e);
-    }
+      sound.play().catch((e) => console.log("효과음 보류:", e));
+    } catch (e) {}
   };
 
-  const toggleBgm = () => {
-    setIsBgmOn(!isBgmOn);
-  };
+  const toggleBgm = () => setIsBgmOn(!isBgmOn);
 
   const seededRandom = () => {
     const a = 1664525; const c = 1013904223; const m = Math.pow(2, 32);
@@ -149,6 +148,10 @@ export default function App() {
     setRoomCode(code); setMyPlayerNum(1);
     
     const roomRef = ref(db, `rooms/${code}`);
+    
+    // 💡 [개선 3: 유령 플레이어 방지] 방장이 탭을 끄면 방 전체를 폭파하도록 유언장 등록
+    onDisconnect(roomRef).remove();
+
     await set(roomRef, {
       exists: true,
       gameState: 'READY',
@@ -162,11 +165,11 @@ export default function App() {
   };
 
   const joinRoom = () => {
-    if (isJoining) return; // 💡 광클 이중 입장 차단문
+    if (isJoining) return;
     const code = joinInput.toUpperCase().trim();
     if (code.length !== 5) { alert("올바른 코드를 입력하세요."); return; }
 
-    setIsJoining(true); // 버튼 잠금
+    setIsJoining(true);
     const roomPlayersRef = ref(db, `rooms/${code}`);
     
     onValue(roomPlayersRef, async (snapshot) => {
@@ -201,7 +204,12 @@ export default function App() {
 
       setGameMode('MULTI'); setIsHost(false); setRoomCode(code); setMyPlayerNum(targetPNum);
 
-      await set(ref(db, `rooms/${code}/players/p${targetPNum}`), {
+      const mySlotRef = ref(db, `rooms/${code}/players/p${targetPNum}`);
+      
+      // 💡 [개선 3: 유령 플레이어 방지] 게스트가 탭을 끄면 자기 슬롯만 조용히 비우도록 유언장 등록
+      onDisconnect(mySlotRef).remove();
+
+      await set(mySlotRef, {
         active: true,
         name: nickname,
         target: 1,
@@ -211,7 +219,7 @@ export default function App() {
 
       setScreen('GAME');
       initGame('MULTI', code, targetPNum);
-      setIsJoining(false); // 잠금 해제
+      setIsJoining(false); 
     }, { onlyOnce: true });
   };
 
@@ -336,10 +344,8 @@ export default function App() {
     if (gameState !== 'RUNNING' || showCountdown) return;
     if (myFinalTimeRef.current !== null) return;
 
-    // 💡 [핵심 버그 수정부] 화면 갱신 렉으로 인해 이미 눌러버린 과거의 카드를 시스템이 재평가하는 현상 100% 무시
     if (value < currentTargetRef.current) return;
 
-    // 💡 [핵심 버그 수정부] 모든 평가는 화면(State)이 아닌 실시간 메모리(Ref)를 기준으로 검증하여 절대 씹히지 않음
     if (value === currentTargetRef.current) {
       playSound('success'); 
       
@@ -347,9 +353,8 @@ export default function App() {
       currentTargetRef.current = nextTarget; 
       setCurrentTarget(nextTarget);
 
-      // 💡 [핵심 버그 수정부] Board도 과거 데이터에 덮어쓰이지 않도록 "함수형 최신화" 설계
       setBoard(prevBoard => {
-        if (prevBoard[index] !== value) return prevBoard; // 따닥! 중복 실행 방어벽
+        if (prevBoard[index] !== value) return prevBoard; 
 
         const newBoard = [...prevBoard];
         if (nextNumbersPoolRef.current.length > 0) {
@@ -374,8 +379,10 @@ export default function App() {
         setDisplayTime(final);
 
         if (gameMode === 'MULTI') {
+          // 💡 [개선 2: 안티치트 검증 로직] 유저가 완료를 선언한 시점의 진짜 서버 시간을 파이어베이스에 영구 각인
           update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
-            timer: final
+            timer: final,
+            serverVerifiedFinishTime: serverTimestamp() 
           });
           
           onValue(ref(db, `rooms/${roomCode}/finishDeadline`), (snapshot) => {
@@ -501,13 +508,15 @@ export default function App() {
       await update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         target: 1,
         timer: '0.00',
-        board: JSON.stringify(Array(9).fill(null))
+        board: JSON.stringify(Array(9).fill(null)),
+        serverVerifiedFinishTime: null
       });
     } else {
       await update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         target: 1,
         timer: '0.00',
-        board: JSON.stringify(Array(9).fill(null))
+        board: JSON.stringify(Array(9).fill(null)),
+        serverVerifiedFinishTime: null
       });
     }
   };
@@ -516,6 +525,9 @@ export default function App() {
     clearInterval(mainIntervalRef.current);
 
     if (gameMode === 'MULTI' && roomCode) {
+      const myPlayerRef = ref(db, `rooms/${code}/players/p${targetPNum}`);
+      onDisconnect(myPlayerRef).cancel(); // 정상 퇴장 시 유언장 파기
+
       if (isHost) {
         await remove(ref(db, `rooms/${roomCode}`)); 
       } else {
@@ -548,7 +560,6 @@ export default function App() {
       if (showCountdown || myFinalTimeRef.current !== null || screen !== 'GAME') return;
       let idx = numpadMap[e.code] !== undefined ? numpadMap[e.code] : regularKeyMap[e.code];
       
-      // 💡 [핵심 버그 수정부] 키보드 연속 타건 시에도 화면 렉에 구애받지 않고 항상 최신판 메모리 거울(boardRef)을 참조
       const currentBoard = boardRef.current;
 
       if (idx !== undefined && currentBoard[idx] !== null) {
@@ -574,6 +585,21 @@ export default function App() {
     }
     return player.target > MAX_NUMBER ? `${rawTimer.toFixed(2)}초 (완주)` : `${countBroken}개 제거 (${rawTimer.toFixed(2)}초) [탈락]`;
   };
+
+  // 💡 [개선 4: 리액트 렌더링 최적화]
+  // 0.04초마다 바뀌는 타이머 시간(displayTime) 때문에 그리드가 같이 새로고침되는 것을 방지하기 위해,
+  // 메모리 캐싱(useMemo)을 사용하여 보드 배열(board)이 바뀔 때만 타일 UI를 새로 그리도록 격리 벽을 세웠습니다.
+  const renderedGrid = useMemo(() => {
+    return board.map((val, idx) => (
+      <div key={idx} 
+        className={`tile ${val === null ? 'empty' : ''} ${wrongTileIdx === idx ? 'wrong' : ''} ${activeTileIdx === idx ? 'active' : ''}`}
+        onClick={() => val !== null && handleTileClick(idx, val)}
+      >
+        {val}
+        {val !== null && <span className="key-hint">N{hintNumbers[idx]}</span>}
+      </div>
+    ));
+  }, [board, wrongTileIdx, activeTileIdx]);
 
   return (
     <div className={`app-container ${isFlash ? 'penalty-flash' : ''}`}>
@@ -685,16 +711,10 @@ export default function App() {
                 <div id="info">나의 타겟: <span style={{color: '#007bff', fontSize: '1.4rem'}}>{currentTarget <= MAX_NUMBER ? currentTarget : 'Clear!'}</span></div>
                 <div className="timer-container"><span>{timerLabel}</span> <span>{displayTime}</span>초</div>
               </div>
+              
+              {/* 💡 최적화된 Grid 렌더링 주입 */}
               <div className="grid-container">
-                {board.map((val, idx) => (
-                  <div key={idx} 
-                    className={`tile ${val === null ? 'empty' : ''} ${wrongTileIdx === idx ? 'wrong' : ''} ${activeTileIdx === idx ? 'active' : ''}`}
-                    onClick={() => val !== null && handleTileClick(idx, val)}
-                  >
-                    {val}
-                    {val !== null && <span className="key-hint">N{hintNumbers[idx]}</span>}
-                  </div>
-                ))}
+                {renderedGrid}
               </div>
             </div>
 
