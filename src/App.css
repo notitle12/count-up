@@ -524,20 +524,54 @@ h1 {
   margin-bottom: 20px;
 }
 
-.rank-item {
+/* .rank-item {
   display: flex;
   justify-content: space-between;
   padding: 8px 0;
   border-bottom: 1px solid #eee;
   font-weight: bold;
+} */
+ .rank-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  font-weight: bold;
+  
+  /* 💡 핵심: 절대 줄바꿈이 일어나지 않도록 강제하고 좌우 간격 벌리기 */
+  white-space: nowrap; 
+  gap: 15px; 
 }
 
+/* 닉네임 영역 (왼쪽) : 닉네임이 너무 길면 자동으로 말줄임표(...) 처리 */
+.rank-item span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+/* 점수 영역 (오른쪽) : 공간이 좁아져도 절대 텍스트가 찌그러지지 않도록 보호 */
+.rank-item span:last-child {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* 내 기록일 때(파란색 박스) 스타일 조정 */
 .rank-item.is-me {
+  background-color: #007bff;
+  color: white;
+}
+
+/* .rank-item.is-me {
   color: #007bff;
   background-color: #e6f2ff;
   border-radius: 4px;
   padding: 8px 5px;
-}
+} */
 
 .penalty-flash {
   animation: flash red 0.3s ease-in-out;
