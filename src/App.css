@@ -1,3 +1,6 @@
+/* =========================================
+   🎨 글로벌 기본 스타일
+   ========================================= */
 html, body {
   margin: 0;
   padding: 0;
@@ -34,7 +37,9 @@ h1 {
   width: 100%;
 }
 
-/* 닉네임 커스텀 창 */
+/* =========================================
+   👤 나의 닉네임 설정 바
+   ========================================= */
 .nickname-container {
   margin-bottom: 25px;
   padding: 12px;
@@ -67,99 +72,129 @@ h1 {
   outline: none;
 }
 
-/* 로비 구조 */
-.lobby-screen, #lobby-screen {
+/* =========================================
+   🌐 메인 로비 UI (모던 리팩토링 완료)
+   ========================================= */
+#lobby-screen {
   display: inline-block;
   text-align: left;
   background: white;
-  padding: 35px;
-  border-radius: 15px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+  padding: 40px;
+  border-radius: 20px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
 }
 
 .lobby-row {
-  display: table;
-  border-collapse: separate;
-  border-spacing: 40px 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 40px;
   margin: 0 auto;
 }
 
 .lobby-section {
-  display: table-cell;
-  vertical-align: top;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   text-align: center;
+  min-width: 220px;
 }
 
 .v-line {
-  display: table-cell;
   width: 1px;
-  background-color: #eee;
-  height: 100%;
+  background-color: #eaeaea;
 }
 
 .section-title {
-  font-weight: bold;
-  color: #555;
-  font-size: 1rem;
-  margin-bottom: 15px;
+  font-weight: 800;
+  color: #2d3748;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  letter-spacing: -0.5px;
 }
 
+/* 🔘 로비 버튼 공통 스타일 */
 .lobby-btn {
-  width: 200px;
-  padding: 15px;
-  font-size: 1.1rem;
+  width: 100%;
+  max-width: 220px;
+  padding: 14px;
+  font-size: 1.05rem;
   font-weight: bold;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background 0.2s;
-  display: block;
-  margin: 0 auto 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.lobby-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
 }
 
 .btn-single {
-  background-color: #ff9f43;
+  background: linear-gradient(135deg, #ff9f43, #ff793f);
 }
 .btn-single:hover {
-  background-color: #ee5a24;
+  background: linear-gradient(135deg, #ff793f, #cd6133);
 }
 
 .btn-create {
-  background-color: #007bff;
+  background: linear-gradient(135deg, #007bff, #0056b3);
 }
 .btn-create:hover {
-  background-color: #0056b3;
+  background: linear-gradient(135deg, #0056b3, #003a80);
 }
 
-.btn-join {
-  background-color: #28a745;
-}
-.btn-join:hover {
-  background-color: #218838;
-}
-
+/* 📥 같이하기 하단 입력 영역 패키징 (간격 버그 수정) */
 .join-box {
-  display: block;
-  text-align: center;
-  margin-top: 15px;
+  width: 100%;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px; 
+  margin-top: auto; 
+  padding-top: 15px;
 }
 
 .join-input {
-  width: 100px;
-  padding: 11px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
   font-size: 1.1rem;
   text-align: center;
   text-transform: uppercase;
-  border: 2px solid #ccc;
-  border-radius: 5px;
-  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
   color: #333;
-  display: inline-block;
-  vertical-align: middle;
-  margin-right: 8px;
+  font-weight: bold;
+  transition: all 0.2s;
 }
 
+.join-input:focus {
+  border-color: #28a745;
+  background: white;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.15);
+}
+
+.btn-join {
+  background: linear-gradient(135deg, #28a745, #218838);
+  width: 100%; 
+  padding: 12px;
+}
+.btn-join:hover {
+  background: linear-gradient(135deg, #218838, #1e7e34);
+}
+
+/* =========================================
+   🎮 인게임 레이아웃 & 상단 대시보드
+   ========================================= */
 #game-screen {
   display: inline-block;
   text-align: center;
@@ -229,7 +264,9 @@ h1 {
   white-space: nowrap; 
 }
 
-/* 플레이어 메인 3x3 격자판 */
+/* =========================================
+   🧩 플레이어 메인 3x3 격자판 (배경 밀림 버그 수정 완료)
+   ========================================= */
 .grid-container {
   display: grid;
   grid-template-columns: repeat(3, 100px);
@@ -238,7 +275,7 @@ h1 {
   background-color: #ccc;
   padding: 10px;
   border-radius: 10px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   margin: 0 auto;
   width: max-content;
 }
@@ -294,7 +331,9 @@ h1 {
   color: #e9ecef;
 }
 
-/* 우측 사이드 전체 레이아웃 (순위표 + 미니맵) */
+/* =========================================
+   📊 우측 멀티플레이 영역 (순위표 + 미니맵)
+   ========================================= */
 .side-multi-area {
   display: flex;
   flex-direction: column;
@@ -305,7 +344,7 @@ h1 {
   background: #fff;
   padding: 15px;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   box-sizing: border-box;
 }
 
@@ -363,7 +402,7 @@ h1 {
   color: #007bff;
 }
 
-/* 상대방 실시간 화면 미니맵 */
+/* 🗺️ 상대방 실시간 화면 미니맵 */
 .minimaps-area {
   width: 100%;
   text-align: left;
@@ -429,14 +468,16 @@ h1 {
   line-height: 1.4;
 }
 
-/* 이펙트 오버레이 */
+/* =========================================
+   ✨ 애니메이션 및 모달 오버레이
+   ========================================= */
 .countdown-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0,0,0,0.7);
+  background-color: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -452,7 +493,7 @@ h1 {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0,0,0,0.8);
+  background-color: rgba(0, 0, 0, 0.8);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -465,7 +506,7 @@ h1 {
   padding: 30px;
   border-radius: 15px;
   width: 350px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   align-items: center;
