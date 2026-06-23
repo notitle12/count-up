@@ -311,6 +311,7 @@ export default function App() {
   };
 
   // 💡 파이어베이스 클라우드 데이터 실시간 동기화 (구글 초고속 웹소켓 연동)
+// 💡 파이어베이스 클라우드 데이터 실시간 동기화 (구글 초고속 웹소켓 연동)
   useEffect(() => {
     if (gameMode !== 'MULTI' || !roomCode || screen !== 'GAME') return;
 
@@ -321,12 +322,12 @@ export default function App() {
       const data = snapshot.val();
       if (!data) return;
 
-      // 1. 참여자용 시작 동기화 신호 처리
-      if (!isHost && data.gameState === 'STARTING' && gameState === 'READY' && !showCountdown) {
-        setGameState('RUNNING');
-        seedRef.current = data.sharedSeed;
-        generateInitialGameData(data.sharedSeed);
-        startSyncLoop(data.schedCountdown, data.schedStart);
+      // 🔄 [수정완료] !isHost 조건을 제거하여 방장과 게스트 모두 동시 스타트 처리!
+      if (data.gameState === 'STARTING' && gameState === 'READY' && !showCountdown) {
+        setGameState('RUNNING'); // 게임 상태 가동
+        seedRef.current = data.sharedSeed; // 서버 공통 시드로 조립
+        generateInitialGameData(data.sharedSeed); // 👈 이제 방장도 타일에 숫자가 생성됩니다!
+        startSyncLoop(data.schedCountdown, data.schedStart); // 타이머 카운트다운 가동
       }
 
       // 2. 마감 데드라인 처리
