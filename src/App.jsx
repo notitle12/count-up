@@ -18,7 +18,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+let analytics = null;
+try {
+  if (typeof window !== 'undefined') {
+    analytics = getAnalytics(app);
+  }
+} catch (error) {
+  console.warn("애드가드에 의해 애널리틱스가 차단되었지만, 게임은 정상 실행됩니다.");
+}
+
 const db = getDatabase(app);
 
 const MAX_NUMBER = 50;
