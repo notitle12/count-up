@@ -93,7 +93,6 @@ export default function App() {
     initGame('SINGLE');
   };
 
-  // 💡 국경을 넘나드는 클라우드 방 생성 로직
   const createRoom = async () => {
     setGameMode('MULTI'); setIsHost(true);
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -101,7 +100,6 @@ export default function App() {
     for (let i = 0; i < 5; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     setRoomCode(code); setMyPlayerNum(1);
     
-    // 파이어베이스 클라우드 DB에 글로벌 방 개설
     const roomRef = ref(db, `rooms/${code}`);
     await set(roomRef, {
       exists: true,
@@ -115,13 +113,11 @@ export default function App() {
     initGame('MULTI', code, 1);
   };
 
-  // 💡 글로벌 방 참여 로직
   const joinRoom = () => {
     const code = joinInput.toUpperCase().trim();
     if (code.length !== 5) { alert("올바른 코드를 입력하세요."); return; }
 
     const roomPlayersRef = ref(db, `rooms/${code}`);
-    // 방 데이터 1회성 조회
     onValue(roomPlayersRef, async (snapshot) => {
       const data = snapshot.val();
       if (!data || !data.exists) { alert("존재하지 않는 방입니다."); return; }
@@ -142,7 +138,6 @@ export default function App() {
 
       setGameMode('MULTI'); setIsHost(false); setRoomCode(code); setMyPlayerNum(targetPNum);
 
-      // 내 슬롯 활성화 데이터 클라우드 전송
       await set(ref(db, `rooms/${code}/players/p${targetPNum}`), {
         active: true,
         name: nickname,
@@ -199,7 +194,6 @@ export default function App() {
     }
   };
 
-  // 💡 방장이 시작 누르면 전 세계 접속 유저에게 실시간 동기화 신호 발송
   const broadcastStartSignal = () => {
     if (gameState !== 'READY') return;
 
@@ -291,7 +285,6 @@ export default function App() {
             timer: final
           });
           
-          // 1등 진입 시 마감 데드라인 클라우드 설정
           onValue(ref(db, `rooms/${roomCode}/finishDeadline`), (snapshot) => {
             if (!snapshot.exists()) {
               set(ref(db, `rooms/${roomCode}/finishDeadline`), now + 5000);
@@ -302,35 +295,39 @@ export default function App() {
         }
       }
     } else {
+      // 🔄 [수정완료] 싱글/멀티 공통으로 오답 페널티 부여 구조 확장
       if (gameMode === 'SINGLE') {
-        elapsedSecondsRef.current += 5;
-        setIsFlash(true); setTimeout(() => setIsFlash(false), 300);
+        elapsedSecondsRef.current += 5; // 싱글은 기존 5초 유지
+      } else {
+        elapsedSecondsRef.current += 3; // 멀티는 요청하신 대로 3초 패널티 추가
+        // 실시간으로 늘어난 시간을 파이어베이스 데이터베이스에 즉시 업데이트 송신
+        const now = Date.now();
+        const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
+        update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
+          timer: exactElapsed.toFixed(2)
+        });
       }
+      setIsFlash(true); setTimeout(() => setIsFlash(false), 300);
       setWrongTileIdx(index); setTimeout(() => setWrongTileIdx(null), 150);
     }
   };
 
-  // 💡 파이어베이스 클라우드 데이터 실시간 동기화 (구글 초고속 웹소켓 연동)
-// 💡 파이어베이스 클라우드 데이터 실시간 동기화 (구글 초고속 웹소켓 연동)
   useEffect(() => {
     if (gameMode !== 'MULTI' || !roomCode || screen !== 'GAME') return;
 
     const roomRef = ref(db, `rooms/${roomCode}`);
     
-    // 클라우드 전체 데이터 실시간 리스너 구독 시작
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
 
-      // 🔄 [수정완료] !isHost 조건을 제거하여 방장과 게스트 모두 동시 스타트 처리!
       if (data.gameState === 'STARTING' && gameState === 'READY' && !showCountdown) {
-        setGameState('RUNNING'); // 게임 상태 가동
-        seedRef.current = data.sharedSeed; // 서버 공통 시드로 조립
-        generateInitialGameData(data.sharedSeed); // 👈 이제 방장도 타일에 숫자가 생성됩니다!
-        startSyncLoop(data.schedCountdown, data.schedStart); // 타이머 카운트다운 가동
+        setGameState('RUNNING'); 
+        seedRef.current = data.sharedSeed; 
+        generateInitialGameData(data.sharedSeed); 
+        startSyncLoop(data.schedCountdown, data.schedStart); 
       }
 
-      // 2. 마감 데드라인 처리
       if (data.finishDeadline) {
         const now = Date.now();
         const left = (data.finishDeadline - now) / 1000;
@@ -341,7 +338,6 @@ export default function App() {
         }
       }
 
-      // 3. 실시간 순위표 및 미니 뷰어 조립
       if (data.players) {
         let list = [];
         let boardsMap = {};
@@ -371,14 +367,13 @@ export default function App() {
         setLeaderboard(list);
         setAllPlayerBoards(boardsMap);
 
-        // 전원 완주 시 즉시 마감
         if (list.length > 0 && list.every(p => p.target > MAX_NUMBER) && gameState === 'RUNNING') {
           handleGameEnd();
         }
       }
     });
 
-    return () => unsubscribe(); // 클린업
+    return () => unsubscribe(); 
   }, [gameMode, roomCode, screen, isHost, gameState, showCountdown]);
 
   const handleGameEnd = () => {
@@ -387,15 +382,14 @@ export default function App() {
     setShowResult(true);
   };
 
-  // 💡 로비로 이동 시 클라우드 데이터 안전 클린업 리셋
   const handleBackToLobby = async () => {
     clearInterval(mainIntervalRef.current);
 
     if (gameMode === 'MULTI' && roomCode) {
       if (isHost) {
-        await remove(ref(db, `rooms/${roomCode}`)); // 방장이 나가면 방 전면 폭파
+        await remove(ref(db, `rooms/${roomCode}`)); 
       } else {
-        await remove(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`)); // 게스트는 자기 슬롯만 삭제
+        await remove(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`)); 
       }
     }
 
@@ -433,14 +427,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showCountdown, board, currentTarget, screen, gameState]);
 
+  // 🔄 [수정완료] 결과 창 출력용 점수 포맷 가이드 가동 - 완주 실패 시 (탈락) 처리
   const formatFinalScoreDisplay = (player) => {
     let rawTimer = parseFloat(player.timer);
     const countBroken = player.target > MAX_NUMBER ? MAX_NUMBER : player.target - 1;
 
     if (isNaN(rawTimer) || rawTimer > 1000000 || rawTimer === 0) {
-      return `${countBroken}개 제거`;
+      return `${countBroken}개 제거 (탈락)`;
     }
-    return player.target > MAX_NUMBER ? `${rawTimer.toFixed(2)}초 (완주)` : `${countBroken}개 제거 (${rawTimer.toFixed(2)}초)`;
+    // MAX_NUMBER를 다 깨야 완주, 아니면 타일 개수 노출 후 탈락 표기 조건 적용
+    return player.target > MAX_NUMBER ? `${rawTimer.toFixed(2)}초 (완주)` : `${countBroken}개 제거 (${rawTimer.toFixed(2)}초) [탈락]`;
   };
 
   return (
