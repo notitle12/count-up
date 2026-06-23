@@ -61,6 +61,9 @@ export default function App() {
   const [isBgmOn, setIsBgmOn] = useState(false);
   const [isSfxOn, setIsSfxOn] = useState(true); 
 
+  // 🔄 [신규 상태] 방장이 다시하기를 허용했는지 참여자들이 감지할 플래그
+  const [canParticipantReplay, setCanParticipantReplay] = useState(false);
+
   const seedRef = useRef(1);
   const myFinalTimeRef = useRef(null);
   const globalStartTimeRef = useRef(0);
@@ -115,7 +118,7 @@ export default function App() {
     let arr = [...array];
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(seededRandom() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      [arr[j]] = [arr[j]];
     }
     return arr;
   };
@@ -143,6 +146,7 @@ export default function App() {
     await set(roomRef, {
       exists: true,
       gameState: 'READY',
+      hostReplayRequested: false, // 💡 다시하기 시그널 초기화
       players: {
         p1: { active: true, name: nickname, target: 1, timer: '0.00', board: JSON.stringify(Array(9).fill(null)) }
       }
@@ -202,6 +206,7 @@ export default function App() {
     setShowResult(false);
     setAllPlayerBoards({});
     setGameState('READY'); 
+    setCanParticipantReplay(false); // 다시하기 권한 리셋
 
     if (mode === 'SINGLE') {
       seedRef.current = Date.now();
@@ -246,7 +251,9 @@ export default function App() {
         sharedSeed: matchSeed,
         schedCountdown: countdownStart,
         schedStart: gameStart,
-        gameState: 'STARTING'
+        gameState: 'STARTING',
+        finishDeadline: null, // 기존 데드라인 제거
+        hostReplayRequested: false // 리플레이 플래그 리셋
       });
     } else {
       seedRef.current = Date.now();
@@ -336,7 +343,6 @@ export default function App() {
       }
     } else {
       playSound('wrong'); 
-      // 🔄 [수정완료] 싱글/멀티 예외 없이 오답 페널티를 무조건 '3초'로 완벽 동결 통일
       elapsedSecondsRef.current += 3; 
 
       if (gameMode === 'MULTI') {
@@ -359,6 +365,33 @@ export default function App() {
     const unsubscribe = onValue(roomRef, (snapshot) => {
       const data = snapshot.val();
       if (!data) return;
+
+      // 1. 방장이 게임판을 다시 대기실 상태로 회귀시켰는지 감지
+      if (data.gameState === 'READY' && gameState === 'FINISHED') {
+        // 인게임 변수들 완전 초기화하여 재장전
+        setCurrentTarget(1);
+        currentTargetRef.current = 1; 
+        elapsedSecondsRef.current = 0;
+        myFinalTimeRef.current = null;
+        setDisplayTime('0.00');
+        setTimerLabel('시간:');
+        setShowCountdown(false);
+        setShowResult(false);
+        setGameState('READY');
+        setCanParticipantReplay(false);
+        
+        // 내 로컬 슬롯 상태도 리셋 세팅 전송
+        update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
+          target: 1,
+          timer: '0.00',
+          board: JSON.stringify(Array(9).fill(null))
+        });
+      }
+
+      // 방장의 다시하기 버튼 클릭 신호 감지 (참여자 제어용)
+      if (data.hostReplayRequested) {
+        setCanParticipantReplay(true);
+      }
 
       if (data.gameState === 'STARTING' && gameState === 'READY' && !showCountdown) {
         setGameState('RUNNING'); 
@@ -421,6 +454,36 @@ export default function App() {
     setShowResult(true);
   };
 
+  // 🔄 [신규 기능] 방장의 다시하기 활성화 및 방 초기화 트리거
+  const handleHostReplayTrigger = async () => {
+    if (!isHost) return;
+    
+    // 1단계: 참여자들에게 다시하기 버튼을 활성화하라고 클라우드에 신호 발송
+    await update(ref(db, `rooms/${roomCode}`), {
+      hostReplayRequested: true
+    });
+  };
+
+  // 🔄 [신규 기능] 활성화된 다시하기 버튼 클릭 시 방 전체가 대기 상태로 복귀
+  const handleExecuteReplay = async () => {
+    if (gameMode === 'SINGLE') {
+      initGame('SINGLE');
+      return;
+    }
+
+    if (isHost) {
+      // 방장이 누르면 클라우드 방 상태를 대기실(READY)로 되돌려 전원 동시 이동 유도
+      await update(ref(db, `rooms/${roomCode}`), {
+        gameState: 'READY',
+        finishDeadline: null,
+        hostReplayRequested: false
+      });
+    } else {
+      // 참여자는 대기 화면으로 바로 전이
+      setShowResult(false);
+    }
+  };
+
   const handleBackToLobby = async () => {
     clearInterval(mainIntervalRef.current);
 
@@ -448,6 +511,7 @@ export default function App() {
     setLeaderboard([]);
     setGameState('READY');
     setAllPlayerBoards({});
+    setCanParticipantReplay(false);
   };
 
   useEffect(() => {
@@ -498,12 +562,41 @@ export default function App() {
                 ))
               )}
             </div>
-            <button className="lobby-btn btn-create" style={{width:'100%'}} onClick={handleBackToLobby}>로비로 이동</button>
+            
+            {/* 🔄 [수정완료] 결과 창 하단 다시하기 및 나가기 유기적 제어 패널 */}
+            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+              {gameMode === 'SINGLE' ? (
+                <button className="lobby-btn btn-single" style={{ width: '100%' }} onClick={handleExecuteReplay}>다시하기</button>
+              ) : isHost ? (
+                // 👑 방장: 언제나 활성화된 다시하기 버튼을 가짐 (클릭 시 참여자들 버튼 활성화 유도)
+                !canParticipantReplay ? (
+                  <button className="lobby-btn btn-single" style={{ width: '100%' }} onClick={handleHostReplayTrigger}>다시하기 활성화</button>
+                ) : (
+                  <button className="lobby-btn btn-create" style={{ width: '100%' }} onClick={handleExecuteReplay}>방 재생성 (대기실로)</button>
+                )
+              ) : (
+                // 👥 게스트: 방장이 허락(활성화)하기 전엔 회색 비활성화 -> 허락하면 파란색 활성화
+                <button 
+                  className={`lobby-btn ${canParticipantReplay ? 'btn-create' : ''}`} 
+                  style={{ 
+                    width: '100%', 
+                    backgroundColor: canParticipantReplay ? '' : '#cbd5e1', 
+                    color: canParticipantReplay ? '' : '#94a3b8',
+                    cursor: canParticipantReplay ? 'pointer' : 'not-allowed'
+                  }} 
+                  disabled={!canParticipantReplay}
+                  onClick={handleExecuteReplay}
+                >
+                  {canParticipantReplay ? '다시하기 참여' : '방장 대기중...'}
+                </button>
+              )}
+              
+              <button className="lobby-btn btn-join" style={{ width: '100%', backgroundColor: '#dc3545' }} onClick={handleBackToLobby}>나가기</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 🎵 [헤더 영역 코드 구조] 사운드 제어용 클래스 감싸기 */}
       <div className="audio-control-header">
         <h1>Count-Up</h1>
         <div className="audio-btn-row">
