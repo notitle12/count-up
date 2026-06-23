@@ -56,7 +56,7 @@ h1 {
 
 /* 플레이어 메인 3x3 격자판 */
 .grid-container {
-  display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 10px; background-color: #ccc; padding: 10px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 0 auto;
+  display: grid; grid-template-columns: repeat(3, 100px); grid-template-rows: repeat(3, 100px); gap: 10px; background-color: #ccc; padding: 10px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 0 auto; width: max-content;
 }
 .tile {
   background-color: #fff; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: bold; color: #333; cursor: pointer; user-select: none; transition: all 0.05s ease; box-shadow: inset 0 -4px 0 #ddd; position: relative; width: 100px; height: 100px; box-sizing: border-box;
