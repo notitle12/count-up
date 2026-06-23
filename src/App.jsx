@@ -56,10 +56,10 @@ export default function App() {
 
   const [gameState, setGameState] = useState('READY'); 
 
-  // 🎵 오디오 시스템 및 스위치 전용 상태 (LOBBY/GAME 화면 상관없이 최상단 고정 배치용)
+  // 🎵 로컬 오디오 시스템 스위치 (멀티플레이어 간 서로 완벽 독립 작동)
   const bgmRef = useRef(null);
   const [isBgmOn, setIsBgmOn] = useState(false);
-  const [isSfxOn, setIsSfxOn] = useState(true); // 💡 효과음 스위치 추가 (기본값 ON)
+  const [isSfxOn, setIsSfxOn] = useState(true); 
 
   const seedRef = useRef(1);
   const myFinalTimeRef = useRef(null);
@@ -71,9 +71,29 @@ export default function App() {
   const currentTargetRef = useRef(1);
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
 
-  // 🎵 효과음 재생 함수 (스위치가 켜져있을 때만 소리 나도록 조건 제어)
+  // 🎵 인게임 전용 플레이 통제 로직 구현
+  useEffect(() => {
+    // 배경음악 객체가 초기 설정되지 않았다면 할당
+    if (!bgmRef.current) {
+      bgmRef.current = new Audio('./bgm.mp3');
+      bgmRef.current.loop = true;
+      bgmRef.current.volume = 0.2;
+    }
+
+    // 💡 [핵심] 오직 인게임 플레이 중(RUNNING)이고 + 유저가 BGM 스위치를 켰을 때만 소리 재생
+    if (gameState === 'RUNNING' && isBgmOn && screen === 'GAME') {
+      bgmRef.current.play().catch((e) => console.log("BGM 재생 보류:", e));
+    } else {
+      // 로비 상태, READY 대기 상태, 게임 종료 시점에는 무조건 자동 음소거(일시정지)
+      if (bgmRef.current) {
+        bgmRef.current.pause();
+      }
+    }
+  }, [gameState, isBgmOn, screen]);
+
+  // 🎵 효과음 제어
   const playSound = (type) => {
-    if (!isSfxOn) return; // 💡 효과음 스위치가 OFF(false)면 함수 즉시 종료!
+    if (!isSfxOn) return; 
     try {
       const audioPath = type === 'success' ? './click.mp3' : './wrong.mp3';
       const sound = new Audio(audioPath);
@@ -84,23 +104,9 @@ export default function App() {
     }
   };
 
-  // 🎵 BGM 토글 함수
+  // 🎵 BGM 토글 (로비에서 미리 선호 설정을 결정할 수 있으며, 클라우드 서버와 독립 연동)
   const toggleBgm = () => {
-    if (!bgmRef.current) {
-      bgmRef.current = new Audio('./bgm.mp3');
-      bgmRef.current.loop = true; 
-      bgmRef.current.volume = 0.2; 
-    }
-
-    if (isBgmOn) {
-      bgmRef.current.pause();
-      setIsBgmOn(false);
-    } else {
-      bgmRef.current.play().catch(() => {
-        alert("브라우저 보안으로 인해 화면을 클릭한 후 음악을 켤 수 있습니다.");
-      });
-      setIsBgmOn(true);
-    }
+    setIsBgmOn(!isBgmOn);
   };
 
   const seededRandom = () => {
@@ -501,15 +507,14 @@ export default function App() {
         </div>
       )}
 
-      {/* 🎵 [수정완료] 홈 화면(최상단 헤더)에 어울리는 BGM / SFX 개별 토글 컨트롤 타워 패키징 */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+      {/* 🎵 [레이아웃 고정] 헤더 영역 마진 격리 조치로 버튼 밀림 해결 */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '35px' }}>
         <h1 style={{ margin: 0, width: 'auto' }}>Count-Up</h1>
         <div style={{ display: 'flex', gap: '10px' }}>
-          {/* 📻 배경음악 온오프 */}
           <button 
             onClick={toggleBgm} 
             style={{
-              padding: '6px 14px',
+              padding: '8px 16px',
               fontSize: '0.85rem',
               fontWeight: 'bold',
               borderRadius: '20px',
@@ -521,13 +526,12 @@ export default function App() {
               transition: 'all 0.2s'
             }}
           >
-            {isBgmOn ? '🎵 BGM ON' : '🔇 BGM OFF'}
+            {isBgmOn ? '🔊 BGM ON' : '🔇 BGM OFF'}
           </button>
-          {/* 🔊 효과음 온오프 */}
           <button 
             onClick={() => setIsSfxOn(!isSfxOn)} 
             style={{
-              padding: '6px 14px',
+              padding: '8px 16px',
               fontSize: '0.85rem',
               fontWeight: 'bold',
               borderRadius: '20px',
