@@ -7,14 +7,14 @@ import { getAnalytics } from "firebase/analytics";
 import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDJcc8JRs8xLqNaEMmwuomTSjLlExxUC3I",
-  authDomain: "count-up-9fdb4.firebaseapp.com",
-  projectId: "count-up-9fdb4",
-  storageBucket: "count-up-9fdb4.firebasestorage.app",
-  messagingSenderId: "292246722779",
-  appId: "1:292246722779:web:503faf95d835327ea1d4fe",
-  measurementId: "G-YGVZLGC7Z5",
-  databaseURL: "https://count-up-9fdb4-default-rtdb.firebaseio.com/"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL
 };
 
 const app = initializeApp(firebaseConfig);
