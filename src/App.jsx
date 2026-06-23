@@ -37,6 +37,9 @@ export default function App() {
   const [myPlayerNum, setMyPlayerNum] = useState(1);
   const [isHost, setIsHost] = useState(false);
   
+  // 💡 [버그 수정부] 입장 버튼 광클 시 발생하는 중복 유령 플레이어 방지 락(Lock)
+  const [isJoining, setIsJoining] = useState(false);
+  
   const [nickname, setNickname] = useState(() => {
     return sessionStorage.getItem('countup_nickname') || `Player_${Math.floor(Math.random() * 900) + 100}`;
   });
@@ -54,9 +57,7 @@ export default function App() {
   const [activeTileIdx, setActiveTileIdx] = useState(null);
   const [isFlash, setIsFlash] = useState(false);
 
-  // 로컬 개인의 화면 상태
   const [gameState, setGameState] = useState('READY'); 
-  // 클라우드 서버의 방 전체 상태를 직관적으로 거울처럼 비추는 상태
   const [globalGameState, setGlobalGameState] = useState('READY'); 
 
   const bgmRef = useRef(null);
@@ -71,9 +72,15 @@ export default function App() {
   const nextNumbersPoolRef = useRef([]); 
   
   const currentTargetRef = useRef(1);
-  const [allPlayerBoards, setAllPlayerBoards] = useState({});
-  
   const finishDeadlineRef = useRef(null);
+  
+  // 💡 [버그 수정부] 키보드 입력 지연(Stale State)을 완벽 차단하기 위한 보드 실시간 거울 메모리
+  const boardRef = useRef(Array(9).fill(null));
+  const [allPlayerBoards, setAllPlayerBoards] = useState({});
+
+  useEffect(() => {
+    boardRef.current = board;
+  }, [board]);
 
   useEffect(() => {
     if (!bgmRef.current) {
@@ -155,14 +162,25 @@ export default function App() {
   };
 
   const joinRoom = () => {
+    if (isJoining) return; // 💡 광클 이중 입장 차단문
     const code = joinInput.toUpperCase().trim();
     if (code.length !== 5) { alert("올바른 코드를 입력하세요."); return; }
 
+    setIsJoining(true); // 버튼 잠금
     const roomPlayersRef = ref(db, `rooms/${code}`);
+    
     onValue(roomPlayersRef, async (snapshot) => {
       const data = snapshot.val();
-      if (!data || !data.exists) { alert("존재하지 않는 방입니다."); return; }
-      if (data.gameState !== 'READY') { alert("이미 게임이 시작된 방입니다."); return; }
+      if (!data || !data.exists) { 
+        alert("존재하지 않는 방입니다."); 
+        setIsJoining(false); 
+        return; 
+      }
+      if (data.gameState !== 'READY') { 
+        alert("이미 게임이 시작된 방입니다."); 
+        setIsJoining(false); 
+        return; 
+      }
 
       let assigned = false;
       let targetPNum = 2;
@@ -175,7 +193,11 @@ export default function App() {
         }
       }
 
-      if (!assigned) { alert("방이 가득 찼습니다."); return; }
+      if (!assigned) { 
+        alert("방이 가득 찼습니다."); 
+        setIsJoining(false); 
+        return; 
+      }
 
       setGameMode('MULTI'); setIsHost(false); setRoomCode(code); setMyPlayerNum(targetPNum);
 
@@ -189,6 +211,7 @@ export default function App() {
 
       setScreen('GAME');
       initGame('MULTI', code, targetPNum);
+      setIsJoining(false); // 잠금 해제
     }, { onlyOnce: true });
   };
 
@@ -264,7 +287,7 @@ export default function App() {
     globalStartTimeRef.current = gameTime;
     clearInterval(mainIntervalRef.current);
 
-    let lastDbUpdateTime = 0; // 💡 통신 렉 최적화 방어용 변수 추가
+    let lastDbUpdateTime = 0; 
 
     mainIntervalRef.current = setInterval(() => {
       const now = Date.now();
@@ -296,15 +319,13 @@ export default function App() {
           const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
           const formatted = exactElapsed.toFixed(2);
           
-          // 로컬 화면은 초당 25번 부드럽게 렌더링 진행
           setDisplayTime(formatted);
 
-          // 💡 [핵심 최적화 구간] 파이어베이스에는 0.5초(500ms)에 딱 1번만 타이머를 보냅니다! (서버 과부하 원천 차단)
           if (gameMode === 'MULTI' && now - lastDbUpdateTime > 500) {
             update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
               timer: formatted
             });
-            lastDbUpdateTime = now; // 시간 갱신
+            lastDbUpdateTime = now; 
           }
         }
       }
@@ -315,27 +336,36 @@ export default function App() {
     if (gameState !== 'RUNNING' || showCountdown) return;
     if (myFinalTimeRef.current !== null) return;
 
-    if (value === currentTarget) {
-      playSound('success'); 
-      const newBoard = [...board];
-      
-      if (nextNumbersPoolRef.current.length > 0) {
-        newBoard[index] = nextNumbersPoolRef.current.shift(); 
-      } else {
-        newBoard[index] = null; 
-      }
-      
-      const nextTarget = currentTarget + 1;
-      setCurrentTarget(nextTarget);
-      currentTargetRef.current = nextTarget; 
-      setBoard(newBoard);
+    // 💡 [핵심 버그 수정부] 화면 갱신 렉으로 인해 이미 눌러버린 과거의 카드를 시스템이 재평가하는 현상 100% 무시
+    if (value < currentTargetRef.current) return;
 
-      if (gameMode === 'MULTI') {
-        update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
-          target: nextTarget,
-          board: JSON.stringify(newBoard)
-        });
-      }
+    // 💡 [핵심 버그 수정부] 모든 평가는 화면(State)이 아닌 실시간 메모리(Ref)를 기준으로 검증하여 절대 씹히지 않음
+    if (value === currentTargetRef.current) {
+      playSound('success'); 
+      
+      const nextTarget = currentTargetRef.current + 1;
+      currentTargetRef.current = nextTarget; 
+      setCurrentTarget(nextTarget);
+
+      // 💡 [핵심 버그 수정부] Board도 과거 데이터에 덮어쓰이지 않도록 "함수형 최신화" 설계
+      setBoard(prevBoard => {
+        if (prevBoard[index] !== value) return prevBoard; // 따닥! 중복 실행 방어벽
+
+        const newBoard = [...prevBoard];
+        if (nextNumbersPoolRef.current.length > 0) {
+          newBoard[index] = nextNumbersPoolRef.current.shift(); 
+        } else {
+          newBoard[index] = null; 
+        }
+
+        if (gameMode === 'MULTI') {
+          update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
+            target: nextTarget,
+            board: JSON.stringify(newBoard)
+          });
+        }
+        return newBoard;
+      });
 
       if (nextTarget > MAX_NUMBER) {
         const now = Date.now();
@@ -364,7 +394,6 @@ export default function App() {
       if (gameMode === 'MULTI') {
         const now = Date.now();
         const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
-        // 💡 틀렸을 때는 순위표에 내 초가 늘어난 것을 즉시 보여주기 위해 예외적으로 통신 강제 업데이트
         update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
           timer: exactElapsed.toFixed(2)
         });
@@ -518,17 +547,23 @@ export default function App() {
     const handleKeyDown = (e) => {
       if (showCountdown || myFinalTimeRef.current !== null || screen !== 'GAME') return;
       let idx = numpadMap[e.code] !== undefined ? numpadMap[e.code] : regularKeyMap[e.code];
-      if (idx !== undefined && board[idx] !== null) {
-        if (board[idx] === currentTarget) {
-          setActiveTileIdx(idx); setTimeout(() => { setActiveTileIdx(null); handleTileClick(idx, board[idx]); }, 80);
+      
+      // 💡 [핵심 버그 수정부] 키보드 연속 타건 시에도 화면 렉에 구애받지 않고 항상 최신판 메모리 거울(boardRef)을 참조
+      const currentBoard = boardRef.current;
+
+      if (idx !== undefined && currentBoard[idx] !== null) {
+        if (currentBoard[idx] === currentTargetRef.current) {
+          setActiveTileIdx(idx); 
+          setTimeout(() => setActiveTileIdx(null), 80);
+          handleTileClick(idx, currentBoard[idx]);
         } else {
-          handleTileClick(idx, board[idx]);
+          handleTileClick(idx, currentBoard[idx]);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showCountdown, board, currentTarget, screen, gameState]);
+  }, [showCountdown, currentTarget, screen, gameState]);
 
   const formatFinalScoreDisplay = (player) => {
     let rawTimer = parseFloat(player.timer);
@@ -620,7 +655,14 @@ export default function App() {
               <button className="lobby-btn btn-create" onClick={createRoom}>방 만들기 (방장)</button>
               <div className="join-box">
                 <input type="text" className="join-input" placeholder="CODE" maxLength="5" value={joinInput} onChange={(e) => setJoinInput(e.target.value)} />
-                <button className="lobby-btn btn-join" style={{width: 'auto', padding: '10px 20px'}} onClick={joinRoom}>입장</button>
+                <button 
+                  className="lobby-btn btn-join" 
+                  style={{width: 'auto', padding: '10px 20px', backgroundColor: isJoining ? '#6c757d' : '', cursor: isJoining ? 'not-allowed' : 'pointer'}} 
+                  onClick={joinRoom}
+                  disabled={isJoining}
+                >
+                  {isJoining ? '입장중...' : '입장'}
+                </button>
               </div>
             </div>
           </div>
