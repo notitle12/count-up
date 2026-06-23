@@ -56,7 +56,7 @@ export default function App() {
 
   // 로컬 개인의 화면 상태
   const [gameState, setGameState] = useState('READY'); 
-  // 🔄 [핵심 수정부] 클라우드 서버의 방 전체 상태를 직관적으로 거울처럼 비추는 상태 (버그 완벽 차단)
+  // 클라우드 서버의 방 전체 상태를 직관적으로 거울처럼 비추는 상태
   const [globalGameState, setGlobalGameState] = useState('READY'); 
 
   const bgmRef = useRef(null);
@@ -72,6 +72,9 @@ export default function App() {
   
   const currentTargetRef = useRef(1);
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
+  
+  // 💡 [신규 레프] 파이어베이스 통신 렉에 구애받지 않는 독립 초읽기용 타임스탬프 저장소
+  const finishDeadlineRef = useRef(null);
 
   useEffect(() => {
     if (!bgmRef.current) {
@@ -203,6 +206,7 @@ export default function App() {
     setAllPlayerBoards({});
     setGameState('READY'); 
     setGlobalGameState('READY');
+    finishDeadlineRef.current = null;
 
     if (mode === 'SINGLE') {
       seedRef.current = Date.now();
@@ -274,6 +278,19 @@ export default function App() {
       } else {
         setShowCountdown(false);
         setGameState('RUNNING'); 
+
+        // 💡 [버그 완벽 수정부] 파이어베이스 통신 상태와 100% 무관하게 내 컴퓨터 시계(now) 기준으로 초당 25번 연산 체크!
+        if (finishDeadlineRef.current) {
+          const left = (finishDeadlineRef.current - now) / 1000;
+          if (left > 0) {
+            setTimerLabel(`⏱️ 마감까지: ${left.toFixed(1)}초 | 시간:`);
+          } else {
+            finishDeadlineRef.current = null;
+            handleGameEnd();
+          }
+        } else {
+          setTimerLabel('시간:');
+        }
 
         if (myFinalTimeRef.current === null) {
           const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
@@ -361,26 +378,21 @@ export default function App() {
       const data = snapshot.val();
       if (!data) return;
 
-      // 💡 [핵심 버그 수정부] 찌꺼기 상태를 남기지 않기 위해 클라우드의 전역 상태를 거울처럼 바로 반영
       if (data.gameState) {
         setGlobalGameState(data.gameState);
       }
 
-      // 내 로컬이 대기실(READY)에 안전하게 들어와 있을 때만 시작 신호를 받음
+      // 💡 [버그 완벽 수정부] 파이어베이스 마감시간 변동 노드를 실시간 메모리 레프(Ref)에 즉시 투영 교체
+      if (data.finishDeadline) {
+        finishDeadlineRef.current = data.finishDeadline;
+      } else {
+        finishDeadlineRef.current = null;
+      }
+
       if (data.gameState === 'STARTING' && gameState === 'READY' && !showCountdown) {
         seedRef.current = data.sharedSeed; 
         generateInitialGameData(data.sharedSeed); 
         startSyncLoop(data.schedCountdown, data.schedStart); 
-      }
-
-      if (data.finishDeadline) {
-        const now = Date.now();
-        const left = (data.finishDeadline - now) / 1000;
-        if (left > 0) {
-          setTimerLabel(`⏱️ 마감까지: ${left.toFixed(1)}초 | 시간:`);
-        } else if (gameState === 'RUNNING') {
-          handleGameEnd();
-        }
       }
 
       if (data.players) {
@@ -418,7 +430,6 @@ export default function App() {
       }
     });
 
-    // 불필요한 의존성을 빼서 감지기가 꼬이지 않도록 안정화
     return () => unsubscribe(); 
   }, [gameMode, roomCode, screen, gameState, showCountdown]); 
 
@@ -434,7 +445,6 @@ export default function App() {
       return;
     }
 
-    // 🧹 방장이든 게스트든 다시하기를 누를 때 내 로컬 장전 데이터는 무조건 완벽히 씻어냅니다.
     clearInterval(mainIntervalRef.current);
     setCurrentTarget(1);
     currentTargetRef.current = 1;
@@ -447,9 +457,9 @@ export default function App() {
     setBoard(Array(9).fill(null));
     setLeaderboard([]);
     setGameState('READY');
+    finishDeadlineRef.current = null; // 💡 로컬 데드라인 레프 안전 초기화
 
     if (isHost) {
-      // 방장이 누르면 서버의 전역 상태를 즉각 'READY(대기실)'로 돌려 게스트들의 다시하기 버튼을 점등시킵니다.
       await update(ref(db, `rooms/${roomCode}`), {
         gameState: 'READY',
         finishDeadline: null
@@ -461,7 +471,6 @@ export default function App() {
         board: JSON.stringify(Array(9).fill(null))
       });
     } else {
-      // 게스트는 내 기록판만 초기화하고 조용히 대기실(READY)로 이동합니다.
       await update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         target: 1,
         timer: '0.00',
@@ -498,6 +507,7 @@ export default function App() {
     setGameState('READY');
     setAllPlayerBoards({});
     setGlobalGameState('READY');
+    finishDeadlineRef.current = null;
   };
 
   useEffect(() => {
@@ -555,7 +565,6 @@ export default function App() {
               ) : isHost ? (
                 <button className="lobby-btn btn-create" style={{ width: '100%' }} onClick={handleExecuteReplay}>다시하기</button>
               ) : (
-                // 💡 [핵심 수정부] 클라우드의 전역 상태가 오직 'READY'일 때만 버튼을 활성화시켜 무결성 보장
                 <button 
                   className={`lobby-btn ${globalGameState === 'READY' ? 'btn-create' : ''}`} 
                   style={{ 
