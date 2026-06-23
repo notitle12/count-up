@@ -443,8 +443,9 @@ export default function App() {
       const data = snapshot.val();
       if (!data) return;
 
-      if (data.gameState) {
-        setGlobalGameState(data.gameState);
+       // 💡 서버에서 게임 시작 신호가 오면, 참가자도 시작 상태로 전환
+      if (data.gameState === 'STARTING' || data.gameState === 'RUNNING') {
+        setIsGameStarted(true); 
       }
 
       if (data.finishDeadline) {
@@ -505,7 +506,7 @@ export default function App() {
 
   const handleExecuteReplay = async () => {
     setIsGameStarted(true); // 👈 다시 시작할 때 true로 설정 (버튼 눌러서 다시 시작하는 셈)
-    
+
     if (gameMode === 'SINGLE') {
       initGame('SINGLE');
       return;
@@ -585,7 +586,9 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (showCountdown || myFinalTimeRef.current !== null || screen !== 'GAME') return;
+      // 💡 여기서도 isGameStarted를 체크해야 합니다!
+      if (showCountdown || !isGameStarted || myFinalTimeRef.current !== null || screen !== 'GAME') return;
+      
       let idx = numpadMap[e.code] !== undefined ? numpadMap[e.code] : regularKeyMap[e.code];
       
       const currentBoard = boardRef.current;
