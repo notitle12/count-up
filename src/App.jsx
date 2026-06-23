@@ -43,6 +43,7 @@ if (clickAudioBase) clickAudioBase.preload = 'auto';
 if (wrongAudioBase) wrongAudioBase.preload = 'auto';
 
 export default function App() {
+  const [isGameStarted, setIsGameStarted] = useState(false); // 게임 시작 여부 확인용
   const [screen, setScreen] = useState('LOBBY'); 
   const [gameMode, setGameMode] = useState('SINGLE'); 
   const [roomCode, setRoomCode] = useState('');
@@ -278,6 +279,7 @@ export default function App() {
 
   const broadcastStartSignal = () => {
     if (gameState !== 'READY') return;
+    setIsGameStarted(true); // 👈 클릭 가능 상태로 전환
 
     const now = Date.now();
     const countdownStart = now + 100;
@@ -348,14 +350,29 @@ export default function App() {
     }, 40); 
   };
 
-  const handleTileClick = (index, value) => {
-    if (gameState !== 'RUNNING' || showCountdown) return;
-    if (myFinalTimeRef.current !== null) return;
+    const handleTileClick = (index, value) => {
+      // 1. 카운트다운 중에는 절대 클릭 금지 (화면 레이어 때문)
+      if (showCountdown || !isGameStarted) return;
 
-    if (value < currentTargetRef.current) return;
+      // 2. 게임 종료 후에는 클릭 금지
+      if (myFinalTimeRef.current !== null) return;
 
-    if (value === currentTargetRef.current) {
-      playSound('success'); 
+      // 3. [수정] 게임이 RUNNING이 아니더라도 READY 상태라면 일단 클릭 허용
+      // 만약 첫 클릭이라면 RUNNING으로 상태를 강제 동기화합니다.
+      if (gameState !== 'RUNNING') {
+        if (gameState === 'READY') {
+          setGameState('RUNNING'); 
+        } else {
+          // 그 외(예: FINISHED) 상태라면 클릭 무시
+          return;
+        }
+      }
+
+      // 4. 숫자 확인 로직 (기존 유지)
+      if (value < currentTargetRef.current) return;
+
+      if (value === currentTargetRef.current) {
+        playSound('success');
       
       const nextTarget = currentTargetRef.current + 1;
       currentTargetRef.current = nextTarget; 
@@ -487,6 +504,8 @@ export default function App() {
   };
 
   const handleExecuteReplay = async () => {
+    setIsGameStarted(true); // 👈 다시 시작할 때 true로 설정 (버튼 눌러서 다시 시작하는 셈)
+    
     if (gameMode === 'SINGLE') {
       initGame('SINGLE');
       return;
@@ -543,6 +562,7 @@ export default function App() {
       }
     }
 
+    setIsGameStarted(false);
     setScreen('LOBBY');
     setGameMode('SINGLE');
     setRoomCode('');
@@ -599,7 +619,6 @@ export default function App() {
       <div key={idx} 
         className={`tile ${val === null ? 'empty' : ''} ${wrongTileIdx === idx ? 'wrong' : ''} ${activeTileIdx === idx ? 'active' : ''}`}
         onClick={() => val !== null && handleTileClick(idx, val)}
-        onTouchStart={() => val !== null && handleTileClick(idx, val)}
       >
         {val}
         {val !== null && <span className="key-hint">N{hintNumbers[idx]}</span>}

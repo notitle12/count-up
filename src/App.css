@@ -669,22 +669,23 @@ h1 {
   }
 
   /* 3. 타일 클릭 및 터치 즉각 반응 설정 */
+  /* App.css 내 @media (max-width: 768px) 블록 수정 */
   .tile {
     width: 100%;
     aspect-ratio: 1 / 1;
     cursor: pointer;
-    /* 💡 핵심: 모바일 클릭 지연 방지 및 터치 가능하게 설정 */
-    touch-action: manipulation; 
-    -webkit-tap-highlight-color: transparent; /* 터치 시 파란 박스 방지 */
+    
+    /* 중요: 아래 속성들이 터치 반응을 결정합니다 */
+    touch-action: manipulation; /* 더블탭 줌 등을 방지하고 터치 반응을 빠르게 함 */
+    -webkit-tap-highlight-color: transparent; 
     user-select: none;
-      /* 추가 */
-    pointer-events: auto;
+    pointer-events: auto !important;
   }
-
   /* 4. 카운트다운 텍스트 위치 고정 */
   .countdown-overlay {
     position: fixed; /* 부모 요소를 벗어나 화면 중앙에 고정 */
     top: 0; left: 0;
     width: 100vw; height: 100vh;
+    pointer-events: none; /* 클릭을 통과시킴 */
   }
 }
