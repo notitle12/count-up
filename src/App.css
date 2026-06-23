@@ -9,19 +9,41 @@ html, body {
   background-color: #f0f2f5; 
 }
 
-body {
+/* body {
   font-family: 'Arial', sans-serif;
   display: table;
   width: 100%;
   height: 100vh;
+} */
+
+body {
+  font-family: 'Arial', sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;        /* 👈 Flexbox로 변경 */
+  justify-content: center;
+  align-items: center;
+  background-color: #f0f2f5;
 }
 
-.app-container {
+/* .app-container {
   display: table-cell;
   vertical-align: middle;
   text-align: center;
   width: 100%;
   height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+} */
+
+.app-container {
+  display: flex;        /* 👈 table-cell 대신 flex 사용 */
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 800px;     /* PC에서 너무 커지지 않게 제한 */
   padding: 20px;
   box-sizing: border-box;
 }
@@ -623,46 +645,44 @@ h1 {
   transform: translateY(-1px);
 }
 
-/* 📱 모바일 화면 (화면 너비 768px 이하) 전용 설정 */
+/* 📱 모바일 최적화 및 터치 반응성 보장 */
 @media (max-width: 768px) {
-  /* 1. 전체 레이아웃 세로 정렬 (잘림 방지) */
+  /* 1. 레이아웃 중앙 정렬 보장 */
   .game-layout {
+    display: flex;
     flex-direction: column;
-    align-items: center;
-  }
-
-  .my-area {
+    align-items: center; /* 화면 중앙 정렬 */
     width: 100%;
   }
 
-  /* 2. 숫자판 틀 수정 (화면의 90% 차지, 3x3 격자) */
-  .grid-container { 
+  /* 2. 숫자판 격자 중앙 배치 */
+  .grid-container {
     width: 90%; 
-    max-width: 400px; /* 태블릿에서 너무 커지는 것 방지 */
-    margin: 0 auto; 
+    max-width: 350px; 
+    margin: 20px auto; /* 상하 여백 및 좌우 중앙 정렬 */
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 💡 핵심: 가로 3칸으로 꽉 채움 */
-    grid-template-rows: repeat(3, 1fr);    /* 세로도 3칸 */
-    gap: 10px; 
-    padding: 15px; 
-    box-sizing: border-box;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 10px;
+    background-color: #ccc;
+    border-radius: 10px;
   }
 
-  /* 3. 개별 숫자 타일 비율 및 터치 버그 수정 */
+  /* 3. 타일 클릭 및 터치 즉각 반응 설정 */
   .tile {
     width: 100%;
-    height: auto;
-    aspect-ratio: 1 / 1; /* 1:1 정사각형 유지 */
-    margin: 0;
+    aspect-ratio: 1 / 1;
+    cursor: pointer;
+    /* 💡 핵심: 모바일 클릭 지연 방지 및 터치 가능하게 설정 */
+    touch-action: manipulation; 
+    -webkit-tap-highlight-color: transparent; /* 터치 시 파란 박스 방지 */
+    user-select: none;
   }
 
-  /* 💡 핵심: 모바일 터치 두 번 눌러야 하는 호버 버그 완벽 차단 */
-  .tile:not(.empty):hover {
-    background-color: #fff; /* 모바일에서는 호버 효과 무효화 */
-  }
-
-  .tile:not(.empty):active {
-    background-color: #e2e6ea !important;
-    transform: scale(0.95); /* 터치할 때 눌리는 타격감만 제공 */
+  /* 4. 카운트다운 텍스트 위치 고정 */
+  .countdown-overlay {
+    position: fixed; /* 부모 요소를 벗어나 화면 중앙에 고정 */
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
   }
 }
