@@ -56,7 +56,7 @@ export default function App() {
 
   const [gameState, setGameState] = useState('READY'); 
 
-  // 🎵 로컬 오디오 시스템 스위치 (멀티플레이어 간 서로 완벽 독립 작동)
+  // 🎵 로컬 오디오 시스템 스위치
   const bgmRef = useRef(null);
   const [isBgmOn, setIsBgmOn] = useState(false);
   const [isSfxOn, setIsSfxOn] = useState(true); 
@@ -73,18 +73,15 @@ export default function App() {
 
   // 🎵 인게임 전용 플레이 통제 로직 구현
   useEffect(() => {
-    // 배경음악 객체가 초기 설정되지 않았다면 할당
     if (!bgmRef.current) {
       bgmRef.current = new Audio('./bgm.mp3');
       bgmRef.current.loop = true;
       bgmRef.current.volume = 0.2;
     }
 
-    // 💡 [핵심] 오직 인게임 플레이 중(RUNNING)이고 + 유저가 BGM 스위치를 켰을 때만 소리 재생
     if (gameState === 'RUNNING' && isBgmOn && screen === 'GAME') {
       bgmRef.current.play().catch((e) => console.log("BGM 재생 보류:", e));
     } else {
-      // 로비 상태, READY 대기 상태, 게임 종료 시점에는 무조건 자동 음소거(일시정지)
       if (bgmRef.current) {
         bgmRef.current.pause();
       }
@@ -104,7 +101,6 @@ export default function App() {
     }
   };
 
-  // 🎵 BGM 토글 (로비에서 미리 선호 설정을 결정할 수 있으며, 클라우드 서버와 독립 연동)
   const toggleBgm = () => {
     setIsBgmOn(!isBgmOn);
   };
@@ -340,10 +336,10 @@ export default function App() {
       }
     } else {
       playSound('wrong'); 
-      if (gameMode === 'SINGLE') {
-        elapsedSecondsRef.current += 5; 
-      } else {
-        elapsedSecondsRef.current += 3; 
+      // 🔄 [수정완료] 싱글/멀티 예외 없이 오답 페널티를 무조건 '3초'로 완벽 동결 통일
+      elapsedSecondsRef.current += 3; 
+
+      if (gameMode === 'MULTI') {
         const now = Date.now();
         const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
         update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
@@ -507,42 +503,14 @@ export default function App() {
         </div>
       )}
 
-      {/* 🎵 [레이아웃 고정] 헤더 영역 마진 격리 조치로 버튼 밀림 해결 */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', marginBottom: '35px' }}>
-        <h1 style={{ margin: 0, width: 'auto' }}>Count-Up</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            onClick={toggleBgm} 
-            style={{
-              padding: '8px 16px',
-              fontSize: '0.85rem',
-              fontWeight: 'bold',
-              borderRadius: '20px',
-              border: 'none',
-              cursor: 'pointer',
-              backgroundColor: isBgmOn ? '#007bff' : '#e2e8f0',
-              color: isBgmOn ? 'white' : '#4a5568',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-              transition: 'all 0.2s'
-            }}
-          >
+      {/* 🎵 [헤더 영역 코드 구조] 사운드 제어용 클래스 감싸기 */}
+      <div className="audio-control-header">
+        <h1>Count-Up</h1>
+        <div className="audio-btn-row">
+          <button onClick={toggleBgm} className={`audio-toggle-btn ${isBgmOn ? 'on' : 'off'}`}>
             {isBgmOn ? '🔊 BGM ON' : '🔇 BGM OFF'}
           </button>
-          <button 
-            onClick={() => setIsSfxOn(!isSfxOn)} 
-            style={{
-              padding: '8px 16px',
-              fontSize: '0.85rem',
-              fontWeight: 'bold',
-              borderRadius: '20px',
-              border: 'none',
-              cursor: 'pointer',
-              backgroundColor: isSfxOn ? '#28a745' : '#e2e8f0',
-              color: isSfxOn ? 'white' : '#4a5568',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-              transition: 'all 0.2s'
-            }}
-          >
+          <button onClick={() => setIsSfxOn(!isSfxOn)} className={`audio-toggle-btn ${isSfxOn ? 'on' : 'off'}`}>
             {isSfxOn ? '🔊 SFX ON' : '🔇 SFX OFF'}
           </button>
         </div>

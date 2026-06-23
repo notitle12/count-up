@@ -548,3 +548,43 @@ h1 {
   50% { background-color: #f8d7da; }
   100% { background-color: #f0f2f5; }
 }
+
+/* =========================================
+   🎵 [신규] 사운드 제어 헤더 컴포넌트 마진 격리
+   ========================================= */
+.audio-control-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;          /* 대형 타이틀과 사운드 버튼 줄 사이의 간격 */
+  margin-bottom: 45px; /* 사운드 버튼 줄과 하단 로비 카드/인게임 사이의 완벽한 거리 격리 확보 */
+}
+
+.audio-btn-row {
+  display: flex;
+  gap: 12px;
+}
+
+.audio-toggle-btn {
+  padding: 8px 18px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+.audio-toggle-btn.on {
+  color: white;
+}
+
+.audio-toggle-btn.off {
+  background-color: #e2e8f0;
+  color: #4a5568;
+}
+
+.audio-toggle-btn:hover {
+  transform: translateY(-1px);
+}
