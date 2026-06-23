@@ -3,7 +3,7 @@ import './App.css';
 
 // 💡 파이어베이스 라이브러리
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+// import { getAnalytics } from "firebase/analytics";
 import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
 
 const firebaseConfig = {
@@ -18,16 +18,19 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-let analytics = null;
-try {
-  if (typeof window !== 'undefined') {
-    analytics = getAnalytics(app);
-  }
-} catch (error) {
-  console.warn("애드가드에 의해 애널리틱스가 차단되었지만, 게임은 정상 실행됩니다.");
+const db = getDatabase(app);
+
+// 화면과 DB부터 먼저 켜두고, 애널리틱스 모듈은 나중에 따로 불러옵니다.
+if (typeof window !== 'undefined') {
+  import('firebase/analytics')
+    .then(({ getAnalytics }) => {
+      getAnalytics(app);
+    })
+    .catch((error) => {
+      console.warn("애드가드 차단: 모듈을 다운로드하지 못했지만 게임은 정상 실행됩니다.");
+    });
 }
 
-const db = getDatabase(app);
 
 const MAX_NUMBER = 50;
 const numpadMap = {'Numpad7': 0, 'Numpad8': 1, 'Numpad9': 2, 'Numpad4': 3, 'Numpad5': 4, 'Numpad6': 5, 'Numpad1': 6, 'Numpad2': 7, 'Numpad3': 8};
