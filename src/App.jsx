@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import './App.css';
 
-// 💡 파이어베이스 라이브러리 (유령 방지 onDisconnect 및 안티치트 serverTimestamp 추가)
+// 💡 파이어베이스 라이브러리
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
@@ -47,7 +47,6 @@ export default function App() {
   const [currentTarget, setCurrentTarget] = useState(1);
   const [board, setBoard] = useState(Array(9).fill(null));
   
-  // 타이머 렌더링 최적화를 위한 상태 분리
   const [displayTime, setDisplayTime] = useState('0.00');
   const [timerLabel, setTimerLabel] = useState('시간:');
   
@@ -149,7 +148,6 @@ export default function App() {
     
     const roomRef = ref(db, `rooms/${code}`);
     
-    // 💡 [개선 3: 유령 플레이어 방지] 방장이 탭을 끄면 방 전체를 폭파하도록 유언장 등록
     onDisconnect(roomRef).remove();
 
     await set(roomRef, {
@@ -206,7 +204,6 @@ export default function App() {
 
       const mySlotRef = ref(db, `rooms/${code}/players/p${targetPNum}`);
       
-      // 💡 [개선 3: 유령 플레이어 방지] 게스트가 탭을 끄면 자기 슬롯만 조용히 비우도록 유언장 등록
       onDisconnect(mySlotRef).remove();
 
       await set(mySlotRef, {
@@ -379,7 +376,6 @@ export default function App() {
         setDisplayTime(final);
 
         if (gameMode === 'MULTI') {
-          // 💡 [개선 2: 안티치트 검증 로직] 유저가 완료를 선언한 시점의 진짜 서버 시간을 파이어베이스에 영구 각인
           update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
             timer: final,
             serverVerifiedFinishTime: serverTimestamp() 
@@ -525,8 +521,9 @@ export default function App() {
     clearInterval(mainIntervalRef.current);
 
     if (gameMode === 'MULTI' && roomCode) {
-      const myPlayerRef = ref(db, `rooms/${code}/players/p${targetPNum}`);
-      onDisconnect(myPlayerRef).cancel(); // 정상 퇴장 시 유언장 파기
+      // 💡 [버그 픽스 완료] code -> roomCode, targetPNum -> myPlayerNum 으로 올바르게 변수명 매칭 완료
+      const myPlayerRef = ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`);
+      onDisconnect(myPlayerRef).cancel(); 
 
       if (isHost) {
         await remove(ref(db, `rooms/${roomCode}`)); 
@@ -586,9 +583,6 @@ export default function App() {
     return player.target > MAX_NUMBER ? `${rawTimer.toFixed(2)}초 (완주)` : `${countBroken}개 제거 (${rawTimer.toFixed(2)}초) [탈락]`;
   };
 
-  // 💡 [개선 4: 리액트 렌더링 최적화]
-  // 0.04초마다 바뀌는 타이머 시간(displayTime) 때문에 그리드가 같이 새로고침되는 것을 방지하기 위해,
-  // 메모리 캐싱(useMemo)을 사용하여 보드 배열(board)이 바뀔 때만 타일 UI를 새로 그리도록 격리 벽을 세웠습니다.
   const renderedGrid = useMemo(() => {
     return board.map((val, idx) => (
       <div key={idx} 
@@ -712,7 +706,6 @@ export default function App() {
                 <div className="timer-container"><span>{timerLabel}</span> <span>{displayTime}</span>초</div>
               </div>
               
-              {/* 💡 최적화된 Grid 렌더링 주입 */}
               <div className="grid-container">
                 {renderedGrid}
               </div>
