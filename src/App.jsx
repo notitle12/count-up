@@ -4,7 +4,8 @@ import './App.css';
 // 💡 파이어베이스 라이브러리
 import { initializeApp } from "firebase/app";
 // import { getAnalytics } from "firebase/analytics";
-import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
+// import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
+import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp, push, query, orderByChild, limitToFirst } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -89,6 +90,41 @@ export default function App() {
   
   const boardRef = useRef(Array(9).fill(null));
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
+  const [topRankings, setTopRankings] = useState([]);
+  const [myRanking, setMyRanking] = useState(null);
+  // 💡 [추가] 랭킹 팝업 표시 여부 상태
+  const [showRankingModal, setShowRankingModal] = useState(false);
+
+  // 💡 [추가] 랭킹 데이터를 실시간으로 가져오는 useEffect
+  // 💡 [수정] 랭킹 데이터를 실시간으로 가져와 순위를 계산하는 useEffect
+  useEffect(() => {
+    // limitToFirst(10)을 지워서 전체를 가져오게 한 뒤 내 순위를 찾습니다.
+    const rankQuery = query(ref(db, 'singleRankings'), orderByChild('time'));
+    
+    const unsubscribe = onValue(rankQuery, (snapshot) => {
+      const list = [];
+      snapshot.forEach((childSnap) => {
+        list.push(childSnap.val());
+      });
+      
+      // 1. 화면에 보여줄 상위 10명만 잘라서 저장
+      setTopRankings(list.slice(0, 10));
+
+      // 2. 전체 목록에서 '나(현재 닉네임)'의 최고 기록 찾기
+      const myBestIndex = list.findIndex(r => r.name === nickname);
+      
+      if (myBestIndex !== -1) {
+        setMyRanking({
+          rank: myBestIndex + 1,
+          time: list[myBestIndex].time
+        });
+      } else {
+        setMyRanking(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [nickname]);
 
   useEffect(() => {
     boardRef.current = board;
@@ -418,8 +454,10 @@ export default function App() {
         return newBoard;
       });
 
+      // 💡 [여기가 복구된 핵심 코드입니다] 타겟이 50을 넘었을 때만 종료 처리!
       if (nextTarget > MAX_NUMBER) {
         const now = Date.now();
+        // 최종 걸린 시간 계산
         const final = (((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current).toFixed(2);
         myFinalTimeRef.current = final;
         setDisplayTime(final);
@@ -436,6 +474,12 @@ export default function App() {
             }
           }, { onlyOnce: true });
         } else {
+          // 💡 싱글 모드 완주 시 DB에 기록 저장 후 종료
+          push(ref(db, 'singleRankings'), {
+            name: nickname,
+            time: parseFloat(final),
+            timestamp: serverTimestamp()
+          });
           handleGameEnd();
         }
       }
@@ -660,6 +704,43 @@ export default function App() {
   return (
     <div className={`app-container ${isFlash ? 'penalty-flash' : ''}`}>
       {showCountdown && <div className="countdown-overlay">{countdownText}</div>}
+
+      {/* 💡 [추가] 싱글 명예의 전당 전체 보기 모달 */}
+      {showRankingModal && (
+        <div className="result-modal" style={{ zIndex: 30 }} onClick={() => setShowRankingModal(false)}>
+          <div className="result-box" style={{ width: '90%', maxWidth: '380px', maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div className="result-title" style={{ fontSize: '1.5rem', marginBottom: '15px' }}>🏆 싱글 명예의 전당</div>
+            
+            <div className="final-rank-list" style={{ width: '100%', marginBottom: '0' }}>
+              {topRankings.slice(0, 10).map((rank, idx) => (
+                <div key={idx} className={`rank-item ${rank.name === nickname ? 'is-me' : ''}`} style={{ padding: '10px 15px', marginBottom: '6px' }}>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <strong style={{marginRight: '5px'}}>{idx + 1}위.</strong> {rank.name}
+                  </span>
+                  <span style={{ flexShrink: 0 }}>{rank.time.toFixed(2)}초</span>
+                </div>
+              ))}
+
+              {/* 내 순위가 10위 밖일 때 */}
+              {myRanking && myRanking.rank > 10 && (
+                <>
+                  <div style={{ textAlign: 'center', color: '#adb5bd', margin: '5px 0', fontSize: '1.2rem', lineHeight: '0.5' }}>⋮</div>
+                  <div className="rank-item is-me" style={{ padding: '10px 15px' }}>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <strong style={{marginRight: '5px'}}>{myRanking.rank}위.</strong> {nickname} (나)
+                    </span>
+                    <span style={{ flexShrink: 0 }}>{myRanking.time.toFixed(2)}초</span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button className="lobby-btn btn-single" style={{ marginTop: '20px', width: '100%', background: '#6c757d' }} onClick={() => setShowRankingModal(false)}>
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
       
       {showResult && (
         <div className="result-modal">
@@ -730,6 +811,52 @@ export default function App() {
             <div className="lobby-section">
               <div className="section-title">혼자 하기</div>
               <button className="lobby-btn btn-single" onClick={startSingleMode}>싱글 플레이 (기록)</button>
+
+              {/* 💡 [수정] 싱글모드 명예의 전당 UI (메인 화면: 3등까지만 표시) */}
+              <div 
+                className="single-ranking-box" 
+                onClick={() => setShowRankingModal(true)}
+                style={{ cursor: 'pointer', marginTop: '20px', background: '#f8f9fa', padding: '15px', borderRadius: '10px', textAlign: 'left', fontSize: '0.9rem', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)', transition: 'all 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                <div style={{ fontWeight: 'bold', marginBottom: '10px', color: '#333', textAlign: 'center', whiteSpace: 'nowrap', letterSpacing: '-0.5px' }}>
+                  🏆 싱글 명예의 전당 (Top 3)
+                </div>
+                
+                {topRankings.length === 0 ? (
+                  <div style={{ color: '#888', textAlign: 'center', padding: '10px 0' }}>아직 등록된 기록이 없습니다.</div>
+                ) : (
+                  <>
+                    {/* 💡 딱 3개만 잘라서(slice) 렌더링 */}
+                    {topRankings.slice(0, 3).map((rank, idx) => (
+                      <div key={idx} style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        padding: '6px 5px', 
+                        borderBottom: idx === Math.min(topRankings.length, 3) - 1 ? 'none' : '1px solid #e2e8f0',
+                        backgroundColor: rank.name === nickname ? '#e6f2ff' : 'transparent',
+                        fontWeight: rank.name === nickname ? 'bold' : 'normal',
+                        borderRadius: '5px'
+                      }}>
+                        {/* 💡 긴 닉네임 줄바꿈 방지 (말줄임표 처리) */}
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '10px' }}>
+                          <strong style={{color: idx === 0 ? '#d4af37' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#64748b', marginRight: '5px'}}>
+                            {idx + 1}위.
+                          </strong> 
+                          {rank.name}
+                        </span>
+                        <span style={{ color: '#007bff', flexShrink: 0 }}>{rank.time.toFixed(2)}초</span>
+                      </div>
+                    ))}
+                    
+                    <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.8rem', color: '#6c757d', fontWeight: 'bold' }}>
+                      터치하여 전체 순위 보기 👆
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <div className="v-line"></div>
             <div className="lobby-section">
