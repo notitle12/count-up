@@ -652,47 +652,33 @@ h1 {
   transform: translateY(-1px);
 }
 
-/* 📱 모바일 최적화 및 터치 반응성 보장 */
+/* App.css 맨 하단에 추가 */
+
 @media (max-width: 768px) {
-  /* 1. 레이아웃 중앙 정렬 보장 */
-  .game-layout {
-    display: flex;
+  /* 1. 로비 화면 세로로 배치 */
+  .lobby-row {
     flex-direction: column;
-    align-items: center; /* 화면 중앙 정렬 */
-    width: 100%;
   }
-
-  /* 2. 숫자판 격자 중앙 배치 */
+  .v-line {
+    display: none; /* 모바일에서는 가로 공간이 좁으므로 가운데 세로선 숨김 */
+  }
+  
+  /* 2. 게임 타일 크기 모바일에 맞춰 축소 */
   .grid-container {
-    width: 90%; 
-    max-width: 350px; 
-    margin: 20px auto; /* 상하 여백 및 좌우 중앙 정렬 */
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    padding: 10px;
-    background-color: #ccc;
-    border-radius: 10px;
+    gap: 5px; 
+  }
+  .tile {
+    width: 80px;  /* 기존 크기가 크다면 모바일에 맞게 조절 */
+    height: 80px;
+    font-size: 2rem;
   }
 
-  /* 3. 타일 클릭 및 터치 즉각 반응 설정 */
-  /* App.css 내 @media (max-width: 768px) 블록 수정 */
-  .tile {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    cursor: pointer;
-    
-    /* 중요: 아래 속성들이 터치 반응을 결정합니다 */
-    touch-action: manipulation; /* 더블탭 줌 등을 방지하고 터치 반응을 빠르게 함 */
-    -webkit-tap-highlight-color: transparent; 
-    user-select: none;
-    pointer-events: auto !important;
+  /* 3. 멀티플레이어 화면을 위아래(세로형)로 변경 */
+  .game-layout {
+    flex-direction: column;
   }
-  /* 4. 카운트다운 텍스트 위치 고정 */
-  .countdown-overlay {
-    position: fixed; /* 부모 요소를 벗어나 화면 중앙에 고정 */
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    pointer-events: none; /* 클릭을 통과시킴 */
+  .side-multi-area {
+    width: 100%;
+    margin-top: 20px;
   }
 }
