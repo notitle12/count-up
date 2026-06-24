@@ -3,9 +3,11 @@ import './App.css';
 
 // 💡 파이어베이스 라이브러리
 import { initializeApp } from "firebase/app";
-// import { getAnalytics } from "firebase/analytics";
-// import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp } from "firebase/database";
-import { getDatabase, ref, set, onValue, remove, update, onDisconnect, serverTimestamp, push, query, orderByChild, limitToFirst } from "firebase/database";
+import { 
+  getDatabase, ref, set, onValue, remove, update, 
+  onDisconnect, serverTimestamp, push, query, 
+  orderByChild, limitToFirst, get 
+} from "firebase/database";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -44,7 +46,7 @@ if (clickAudioBase) clickAudioBase.preload = 'auto';
 if (wrongAudioBase) wrongAudioBase.preload = 'auto';
 
 export default function App() {
-  const [isGameStarted, setIsGameStarted] = useState(false); // 게임 시작 여부 확인용
+  const [isGameStarted, setIsGameStarted] = useState(false); 
   const [screen, setScreen] = useState('LOBBY'); 
   const [gameMode, setGameMode] = useState('SINGLE'); 
   const [roomCode, setRoomCode] = useState('');
@@ -92,13 +94,9 @@ export default function App() {
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
   const [topRankings, setTopRankings] = useState([]);
   const [myRanking, setMyRanking] = useState(null);
-  // 💡 [추가] 랭킹 팝업 표시 여부 상태
   const [showRankingModal, setShowRankingModal] = useState(false);
 
-  // 💡 [추가] 랭킹 데이터를 실시간으로 가져오는 useEffect
-  // 💡 [수정] 랭킹 데이터를 실시간으로 가져와 순위를 계산하는 useEffect
   useEffect(() => {
-    // limitToFirst(10)을 지워서 전체를 가져오게 한 뒤 내 순위를 찾습니다.
     const rankQuery = query(ref(db, 'singleRankings'), orderByChild('time'));
     
     const unsubscribe = onValue(rankQuery, (snapshot) => {
@@ -107,10 +105,8 @@ export default function App() {
         list.push(childSnap.val());
       });
       
-      // 1. 화면에 보여줄 상위 10명만 잘라서 저장
       setTopRankings(list.slice(0, 10));
 
-      // 2. 전체 목록에서 '나(현재 닉네임)'의 최고 기록 찾기
       const myBestIndex = list.findIndex(r => r.name === nickname);
       
       if (myBestIndex !== -1) {
@@ -270,7 +266,6 @@ export default function App() {
 
   const initGame = (mode, code = roomCode, pNum = myPlayerNum) => {
     if (nextNumbersPoolRef.current.length > 0 && mode === 'SINGLE') {
-      // console.log("중복 초기화 감지 - 실행 방지");
       return; 
     }
 
@@ -297,9 +292,6 @@ export default function App() {
   const generateInitialGameData = (customSeed = null) => {
     if (customSeed) seedRef.current = customSeed;
 
-    // [로그 추가]
-    // console.log("생성 시도 - 현재 시드:", seedRef.current);
-
     let firstSet = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     firstSet = shuffleArray(firstSet);
     setBoard(firstSet);
@@ -315,10 +307,6 @@ export default function App() {
     }
     nextNumbersPoolRef.current = pool; 
 
-    // [로그 추가]
-    // console.log("생성 완료 - Pool 개수:", nextNumbersPoolRef.current.length);
-    // console.log("Pool 내용:", nextNumbersPoolRef.current);
-
     if (gameMode === 'MULTI') {
       update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
         board: JSON.stringify(firstSet)
@@ -328,7 +316,7 @@ export default function App() {
 
   const broadcastStartSignal = () => {
     if (gameState !== 'READY') return;
-    setIsGameStarted(true); // 👈 클릭 가능 상태로 전환
+    setIsGameStarted(true); 
 
     const now = Date.now();
     const countdownStart = now + 100;
@@ -399,39 +387,42 @@ export default function App() {
     }, 40); 
   };
 
-    const handleTileClick = (index, value) => {
-      // 1. 카운트다운 중에는 절대 클릭 금지 (화면 레이어 때문)
-      if (showCountdown || !isGameStarted) return;
+  // 💡 싱글 모드 최고 기록 저장 함수 (컴포넌트 밖으로 빼서 성능 최적화 및 중첩 문제 해결)
+  const saveMyBestRecord = async (finalTime) => {
+    const recordRef = ref(db, `singleRankings/${nickname}`);
+    const snapshot = await get(recordRef);
+    const currentBest = snapshot.val();
 
-      // 2. 게임 종료 후에는 클릭 금지
-      if (myFinalTimeRef.current !== null) return;
+    if (!currentBest || parseFloat(finalTime) < currentBest.time) {
+      await set(recordRef, {
+        name: nickname,
+        time: parseFloat(finalTime),
+        timestamp: serverTimestamp()
+      });
+    }
+  };
 
-      // 3. [수정] 게임이 RUNNING이 아니더라도 READY 상태라면 일단 클릭 허용
-      // 만약 첫 클릭이라면 RUNNING으로 상태를 강제 동기화합니다.
-      if (gameState !== 'RUNNING') {
-        if (gameState === 'READY') {
-          setGameState('RUNNING'); 
-        } else {
-          // 그 외(예: FINISHED) 상태라면 클릭 무시
-          return;
-        }
+  const handleTileClick = (index, value) => {
+    if (showCountdown || !isGameStarted) return;
+    if (myFinalTimeRef.current !== null) return;
+
+    if (gameState !== 'RUNNING') {
+      if (gameState === 'READY') {
+        setGameState('RUNNING'); 
+      } else {
+        return;
       }
+    }
 
-      // 4. 숫자 확인 로직 (기존 유지)
-      if (value < currentTargetRef.current) return;
+    if (value < currentTargetRef.current) return;
 
-      if (value === currentTargetRef.current) {
-        playSound('success');
+    if (value === currentTargetRef.current) {
+      playSound('success');
       
       const nextTarget = currentTargetRef.current + 1;
-
-      // [로그 추가]
-      // console.log("클릭 성공! 다음 타겟:", nextTarget, "남은 Pool 개수:", nextNumbersPoolRef.current.length);
-
       currentTargetRef.current = nextTarget; 
       setCurrentTarget(nextTarget);
 
-// 💡 핵심 해결: setBoard 밖에서 먼저 숫자를 한 번만 확실하게 뽑아둡니다.
       let pulledNumber = null;
       if (nextNumbersPoolRef.current.length > 0) {
         pulledNumber = nextNumbersPoolRef.current.shift();
@@ -441,8 +432,6 @@ export default function App() {
         if (prevBoard[index] !== value) return prevBoard; 
 
         const newBoard = [...prevBoard];
-
-        // 위에서 안전하게 뽑아둔 숫자를 배열에 넣기만 합니다. (여기서는 shift가 발생하지 않음)
         newBoard[index] = pulledNumber; 
 
         if (gameMode === 'MULTI') {
@@ -454,10 +443,9 @@ export default function App() {
         return newBoard;
       });
 
-      // 💡 [여기가 복구된 핵심 코드입니다] 타겟이 50을 넘었을 때만 종료 처리!
+      // 💡 종료 처리 로직 (중복 조건문 제거)
       if (nextTarget > MAX_NUMBER) {
         const now = Date.now();
-        // 최종 걸린 시간 계산
         const final = (((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current).toFixed(2);
         myFinalTimeRef.current = final;
         setDisplayTime(final);
@@ -474,14 +462,11 @@ export default function App() {
             }
           }, { onlyOnce: true });
         } else {
-          // 💡 싱글 모드 완주 시 DB에 기록 저장 후 종료
-          push(ref(db, 'singleRankings'), {
-            name: nickname,
-            time: parseFloat(final),
-            timestamp: serverTimestamp()
-          });
-          handleGameEnd();
+          // 💡 싱글 모드 완주 시 최고 기록 저장 함수 호출
+          saveMyBestRecord(final);
         }
+        
+        handleGameEnd();
       }
     } else {
       playSound('wrong'); 
@@ -508,12 +493,10 @@ export default function App() {
       const data = snapshot.val();
       if (!data) return;
 
-       // 💡 서버에서 게임 시작 신호가 오면, 참가자도 시작 상태로 전환
       if (data.gameState === 'STARTING' || data.gameState === 'RUNNING') {
         setIsGameStarted(true); 
       }
 
-      // 서버의 게임 상태를 내 로컬 상태와 실시간으로 동기화
       if (data.gameState) {
         setGlobalGameState(data.gameState);
       }
@@ -575,8 +558,6 @@ export default function App() {
   };
 
   const handleExecuteReplay = async () => {
-// 💡 핵심 해결: 다시하기를 누르면 게임 시작 상태를 해제(false)하여 
-    // 반드시 [GAME START] 버튼을 눌러야만 시작되도록 수정합니다.
     setIsGameStarted(false);
 
     if (gameMode === 'SINGLE') {
@@ -624,7 +605,6 @@ export default function App() {
     clearInterval(mainIntervalRef.current);
 
     if (gameMode === 'MULTI' && roomCode) {
-      // 💡 [버그 픽스 완료] code -> roomCode, targetPNum -> myPlayerNum 으로 올바르게 변수명 매칭 완료
       const myPlayerRef = ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`);
       onDisconnect(myPlayerRef).cancel(); 
 
@@ -658,7 +638,6 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // 💡 여기서도 isGameStarted를 체크해야 합니다!
       if (showCountdown || !isGameStarted || myFinalTimeRef.current !== null || screen !== 'GAME') return;
       
       let idx = numpadMap[e.code] !== undefined ? numpadMap[e.code] : regularKeyMap[e.code];
@@ -705,7 +684,6 @@ export default function App() {
     <div className={`app-container ${isFlash ? 'penalty-flash' : ''}`}>
       {showCountdown && <div className="countdown-overlay">{countdownText}</div>}
 
-      {/* 💡 [추가] 싱글 명예의 전당 전체 보기 모달 */}
       {showRankingModal && (
         <div className="result-modal" style={{ zIndex: 30 }} onClick={() => setShowRankingModal(false)}>
           <div className="result-box" style={{ width: '90%', maxWidth: '380px', maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
@@ -721,7 +699,6 @@ export default function App() {
                 </div>
               ))}
 
-              {/* 내 순위가 10위 밖일 때 */}
               {myRanking && myRanking.rank > 10 && (
                 <>
                   <div style={{ textAlign: 'center', color: '#adb5bd', margin: '5px 0', fontSize: '1.2rem', lineHeight: '0.5' }}>⋮</div>
@@ -812,7 +789,6 @@ export default function App() {
               <div className="section-title">혼자 하기</div>
               <button className="lobby-btn btn-single" onClick={startSingleMode}>싱글 플레이 (기록)</button>
 
-              {/* 💡 [수정] 싱글모드 명예의 전당 UI (메인 화면: 3등까지만 표시) */}
               <div 
                 className="single-ranking-box" 
                 onClick={() => setShowRankingModal(true)}
@@ -828,7 +804,6 @@ export default function App() {
                   <div style={{ color: '#888', textAlign: 'center', padding: '10px 0' }}>아직 등록된 기록이 없습니다.</div>
                 ) : (
                   <>
-                    {/* 💡 딱 3개만 잘라서(slice) 렌더링 */}
                     {topRankings.slice(0, 3).map((rank, idx) => (
                       <div key={idx} style={{ 
                         display: 'flex', 
@@ -840,7 +815,6 @@ export default function App() {
                         fontWeight: rank.name === nickname ? 'bold' : 'normal',
                         borderRadius: '5px'
                       }}>
-                        {/* 💡 긴 닉네임 줄바꿈 방지 (말줄임표 처리) */}
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '10px' }}>
                           <strong style={{color: idx === 0 ? '#d4af37' : idx === 1 ? '#c0c0c0' : idx === 2 ? '#cd7f32' : '#64748b', marginRight: '5px'}}>
                             {idx + 1}위.
@@ -887,7 +861,7 @@ export default function App() {
             </div>
             
             {isHost && gameState === 'READY' && !showCountdown && !showResult && (
-              <div style={{ marginTop: '10px' }}> {/* 👈 버튼에만 상단 마진 추가 */}
+              <div style={{ marginTop: '10px' }}>
                 <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>
               </div>
             )}
