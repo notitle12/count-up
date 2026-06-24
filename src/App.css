@@ -46,6 +46,7 @@ body {
   max-width: 800px;     /* PC에서 너무 커지지 않게 제한 */
   padding: 20px;
   box-sizing: border-box;
+  margin: 0 auto;
 }
 
 h1 { 
@@ -98,12 +99,16 @@ h1 {
    🌐 메인 로비 UI (모던 리팩토링 완료)
    ========================================= */
 #lobby-screen {
-  display: inline-block;
-  text-align: left;
+  display: flex;         /* inline-block -> flex */
+  flex-direction: column;
+  align-items: center;   /* 자식들 가로 중앙 정렬 */
+  text-align: center;    /* 내부 텍스트 중앙 정렬 */
   background: white;
   padding: 40px;
   border-radius: 20px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+  width: 100%;           /* 부모 폭 100% 사용 */
+  max-width: 500px;      /* 로비 카드 크기 제한 */
 }
 
 .lobby-row {
@@ -218,8 +223,10 @@ h1 {
    🎮 인게임 레이아웃 & 상단 대시보드
    ========================================= */
 #game-screen {
-  display: inline-block;
-  text-align: center;
+  display: flex;         /* inline-block -> flex */
+  flex-direction: column;
+  align-items: center;   /* 자식들 가로 중앙 정렬 */
+  width: 100%;           /* 부모 폭 100% 사용 */
 }
 
 .game-layout {

@@ -233,6 +233,11 @@ export default function App() {
   };
 
   const initGame = (mode, code = roomCode, pNum = myPlayerNum) => {
+    if (nextNumbersPoolRef.current.length > 0 && mode === 'SINGLE') {
+      // console.log("중복 초기화 감지 - 실행 방지");
+      return; 
+    }
+
     clearInterval(mainIntervalRef.current);
     setCurrentTarget(1);
     currentTargetRef.current = 1; 
@@ -255,6 +260,10 @@ export default function App() {
 
   const generateInitialGameData = (customSeed = null) => {
     if (customSeed) seedRef.current = customSeed;
+
+    // [로그 추가]
+    // console.log("생성 시도 - 현재 시드:", seedRef.current);
+
     let firstSet = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     firstSet = shuffleArray(firstSet);
     setBoard(firstSet);
@@ -269,6 +278,10 @@ export default function App() {
       pool = [...pool, ...chunk];
     }
     nextNumbersPoolRef.current = pool; 
+
+    // [로그 추가]
+    // console.log("생성 완료 - Pool 개수:", nextNumbersPoolRef.current.length);
+    // console.log("Pool 내용:", nextNumbersPoolRef.current);
 
     if (gameMode === 'MULTI') {
       update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
@@ -375,18 +388,26 @@ export default function App() {
         playSound('success');
       
       const nextTarget = currentTargetRef.current + 1;
+
+      // [로그 추가]
+      // console.log("클릭 성공! 다음 타겟:", nextTarget, "남은 Pool 개수:", nextNumbersPoolRef.current.length);
+
       currentTargetRef.current = nextTarget; 
       setCurrentTarget(nextTarget);
+
+// 💡 핵심 해결: setBoard 밖에서 먼저 숫자를 한 번만 확실하게 뽑아둡니다.
+      let pulledNumber = null;
+      if (nextNumbersPoolRef.current.length > 0) {
+        pulledNumber = nextNumbersPoolRef.current.shift();
+      }
 
       setBoard(prevBoard => {
         if (prevBoard[index] !== value) return prevBoard; 
 
         const newBoard = [...prevBoard];
-        if (nextNumbersPoolRef.current.length > 0) {
-          newBoard[index] = nextNumbersPoolRef.current.shift(); 
-        } else {
-          newBoard[index] = null; 
-        }
+
+        // 위에서 안전하게 뽑아둔 숫자를 배열에 넣기만 합니다. (여기서는 shift가 발생하지 않음)
+        newBoard[index] = pulledNumber; 
 
         if (gameMode === 'MULTI') {
           update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
@@ -505,7 +526,9 @@ export default function App() {
   };
 
   const handleExecuteReplay = async () => {
-    setIsGameStarted(true); // 👈 다시 시작할 때 true로 설정 (버튼 눌러서 다시 시작하는 셈)
+// 💡 핵심 해결: 다시하기를 누르면 게임 시작 상태를 해제(false)하여 
+    // 반드시 [GAME START] 버튼을 눌러야만 시작되도록 수정합니다.
+    setIsGameStarted(false);
 
     if (gameMode === 'SINGLE') {
       initGame('SINGLE');
@@ -524,7 +547,7 @@ export default function App() {
     setBoard(Array(9).fill(null));
     setLeaderboard([]);
     setGameState('READY');
-    finishDeadlineRef.current = null; 
+    finishDeadlineRef.current = null;
 
     if (isHost) {
       await update(ref(db, `rooms/${roomCode}`), {
