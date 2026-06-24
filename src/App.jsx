@@ -469,6 +469,11 @@ export default function App() {
         setIsGameStarted(true); 
       }
 
+      // 서버의 게임 상태를 내 로컬 상태와 실시간으로 동기화
+      if (data.gameState) {
+        setGlobalGameState(data.gameState);
+      }
+
       if (data.finishDeadline) {
         finishDeadlineRef.current = data.finishDeadline;
       } else {
