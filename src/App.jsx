@@ -879,12 +879,17 @@ export default function App() {
       ) : (
         <div id="game-screen">
           <div className="room-header">
-            <div className="room-tag">{gameMode === 'SINGLE' ? 'MODE: SINGLE' : `ROOM: ${roomCode}`}</div>
-            <div className="room-tag" style={{backgroundColor: gameMode === 'SINGLE' ? '#ff9f43' : isHost ? '#007bff' : '#e83e8c'}}>
-              {gameMode === 'SINGLE' ? `${nickname} (싱글)` : `${nickname} (PLAYER ${myPlayerNum}${isHost ? '/방장' : ''})`}
+            <div className="header-row">
+              <div className="room-tag">{gameMode === 'SINGLE' ? 'MODE: SINGLE' : `ROOM: ${roomCode}`}</div>
+              <div className="room-tag" style={{backgroundColor: gameMode === 'SINGLE' ? '#ff9f43' : isHost ? '#007bff' : '#e83e8c'}}>
+                {gameMode === 'SINGLE' ? `${nickname} (싱글)` : `${nickname} (PLAYER ${myPlayerNum}${isHost ? '/방장' : ''})`}
+              </div>
             </div>
+            
             {isHost && gameState === 'READY' && !showCountdown && !showResult && (
-              <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>
+              <div style={{ marginTop: '10px' }}> {/* 👈 버튼에만 상단 마진 추가 */}
+                <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>
+              </div>
             )}
           </div>
 

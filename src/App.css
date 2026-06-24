@@ -243,11 +243,18 @@ h1 {
 }
 
 .room-header {
-  display: block;
-  text-align: center;
+  display: flex;         /* 👈 블록 대신 flex 사용 */
+  flex-direction: column; /* 세로 정렬 */
+  align-items: center;    /* 가운데 정렬 */
+  gap: 15px;              /* 👈 요소들 사이의 15px 여백 */
   margin-bottom: 25px;
-  font-weight: bold;
-  font-size: 1.1rem;
+  width: 100%;
+}
+
+.header-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
 }
 
 .room-tag {
@@ -665,10 +672,13 @@ h1 {
   
   /* 2. 게임 타일 크기 모바일에 맞춰 축소 */
   .grid-container {
+    grid-template-columns: repeat(3, 80px); /* 👈 추가: 뼈대 가로 크기 축소 */
+    grid-template-rows: repeat(3, 80px);    /* 👈 추가: 뼈대 세로 크기 축소 */
     gap: 5px; 
   }
+
   .tile {
-    width: 80px;  /* 기존 크기가 크다면 모바일에 맞게 조절 */
+    width: 80px;  
     height: 80px;
     font-size: 2rem;
   }
