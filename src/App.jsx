@@ -89,12 +89,24 @@ export default function App() {
   
   const currentTargetRef = useRef(1);
   const finishDeadlineRef = useRef(null);
+
+  const serverTimeOffsetRef = useRef(0);
   
   const boardRef = useRef(Array(9).fill(null));
   const [allPlayerBoards, setAllPlayerBoards] = useState({});
   const [topRankings, setTopRankings] = useState([]);
   const [myRanking, setMyRanking] = useState(null);
   const [showRankingModal, setShowRankingModal] = useState(false);
+
+  useEffect(() => {
+    const offsetRef = ref(db, ".info/serverTimeOffset");
+    const unsubscribe = onValue(offsetRef, (snapshot) => {
+      serverTimeOffsetRef.current = snapshot.val() || 0;
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const getServerTime = () => Date.now() + serverTimeOffsetRef.current;
 
   useEffect(() => {
     const rankQuery = query(ref(db, 'singleRankings'), orderByChild('time'));
@@ -318,7 +330,7 @@ export default function App() {
     if (gameState !== 'READY') return;
     setIsGameStarted(true); 
 
-    const now = Date.now();
+    const now = getServerTime(); // 👈 수정: Date.now() 대신 getServerTime() 사용
     const countdownStart = now + 100;
     const gameStart = countdownStart + 3000;
     const matchSeed = Math.floor(Math.random() * 1000000) + 1;
@@ -339,53 +351,53 @@ export default function App() {
   };
 
   const startSyncLoop = (countdownTime, gameTime) => {
-    globalStartTimeRef.current = gameTime;
-    clearInterval(mainIntervalRef.current);
+      globalStartTimeRef.current = gameTime;
+      clearInterval(mainIntervalRef.current);
 
-    let lastDbUpdateTime = 0; 
+      let lastDbUpdateTime = 0; 
 
-    mainIntervalRef.current = setInterval(() => {
-      const now = Date.now();
+      mainIntervalRef.current = setInterval(() => {
+        const now = getServerTime(); // 👈 수정: Date.now() 대신 getServerTime() 사용
 
-      if (now < globalStartTimeRef.current) {
-        setShowCountdown(true);
-        setGameState('READY');
-        const timeLeft = (globalStartTimeRef.current - now) / 1000;
-        if (timeLeft > 2) setCountdownText('3');
-        else if (timeLeft > 1) setCountdownText('2');
-        else if (timeLeft > 0) setCountdownText('1');
-      } else {
-        setShowCountdown(false);
-        setGameState('RUNNING'); 
-
-        if (finishDeadlineRef.current) {
-          const left = (finishDeadlineRef.current - now) / 1000;
-          if (left > 0) {
-            setTimerLabel(`⏱️ 마감까지: ${left.toFixed(1)}초 | 시간:`);
-          } else {
-            finishDeadlineRef.current = null;
-            handleGameEnd();
-          }
+        if (now < globalStartTimeRef.current) {
+          setShowCountdown(true);
+          setGameState('READY');
+          const timeLeft = (globalStartTimeRef.current - now) / 1000;
+          if (timeLeft > 2) setCountdownText('3');
+          else if (timeLeft > 1) setCountdownText('2');
+          else if (timeLeft > 0) setCountdownText('1');
         } else {
-          setTimerLabel('시간:');
-        }
+          setShowCountdown(false);
+          setGameState('RUNNING'); 
 
-        if (myFinalTimeRef.current === null) {
-          const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
-          const formatted = exactElapsed.toFixed(2);
-          
-          setDisplayTime(formatted);
+          if (finishDeadlineRef.current) {
+            const left = (finishDeadlineRef.current - now) / 1000;
+            if (left > 0) {
+              setTimerLabel(`⏱️ 마감까지: ${left.toFixed(1)}초 | 시간:`);
+            } else {
+              finishDeadlineRef.current = null;
+              handleGameEnd();
+            }
+          } else {
+            setTimerLabel('시간:');
+          }
 
-          if (gameMode === 'MULTI' && now - lastDbUpdateTime > 500) {
-            update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
-              timer: formatted
-            });
-            lastDbUpdateTime = now; 
+          if (myFinalTimeRef.current === null) {
+            const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
+            const formatted = exactElapsed.toFixed(2);
+            
+            setDisplayTime(formatted);
+
+            if (gameMode === 'MULTI' && now - lastDbUpdateTime > 500) {
+              update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
+                timer: formatted
+              });
+              lastDbUpdateTime = now; 
+            }
           }
         }
-      }
-    }, 40); 
-  };
+      }, 40); 
+    };
 
   // 💡 싱글 모드 최고 기록 저장 함수 (컴포넌트 밖으로 빼서 성능 최적화 및 중첩 문제 해결)
   const saveMyBestRecord = async (finalTime) => {
@@ -445,7 +457,7 @@ export default function App() {
 
       // 💡 종료 처리 로직 (중복 조건문 제거)
       if (nextTarget > MAX_NUMBER) {
-        const now = Date.now();
+        const now = getServerTime(); // 👈 수정: Date.now() 대신 getServerTime() 사용
         const final = (((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current).toFixed(2);
         myFinalTimeRef.current = final;
         setDisplayTime(final);
@@ -458,11 +470,10 @@ export default function App() {
           
           onValue(ref(db, `rooms/${roomCode}/finishDeadline`), (snapshot) => {
             if (!snapshot.exists()) {
-              set(ref(db, `rooms/${roomCode}/finishDeadline`), now + 5000);
+              set(ref(db, `rooms/${roomCode}/finishDeadline`), now + 5000); // 👈 수정: now 사용
             }
           }, { onlyOnce: true });
         } else {
-          // 💡 싱글 모드 완주 시 최고 기록 저장 함수 호출
           saveMyBestRecord(final);
         }
         
@@ -473,7 +484,7 @@ export default function App() {
       elapsedSecondsRef.current += 3; 
 
       if (gameMode === 'MULTI') {
-        const now = Date.now();
+        const now = getServerTime(); // 👈 수정: Date.now() 대신 getServerTime() 사용
         const exactElapsed = ((now - globalStartTimeRef.current) / 1000) + elapsedSecondsRef.current;
         update(ref(db, `rooms/${roomCode}/players/p${myPlayerNum}`), {
           timer: exactElapsed.toFixed(2)
@@ -884,7 +895,7 @@ export default function App() {
                 <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>
               </div>
             )}
-            
+
             {/* 💡 새로 추가된 싱글 모드 리셋 버튼 */}
               {gameMode === 'SINGLE' && (gameState === 'RUNNING' || showCountdown) && !showResult && (
                 <div style={{ marginTop: '10px' }}>
