@@ -601,6 +601,25 @@ export default function App() {
     }
   };
 
+  // 💡 싱글 모드 중간 리셋 함수
+  const handleSingleReset = () => {
+    clearInterval(mainIntervalRef.current);
+    setIsGameStarted(false);
+    setGameState('READY');
+    setShowCountdown(false);
+    setShowResult(false);
+    setCurrentTarget(1);
+    currentTargetRef.current = 1;
+    elapsedSecondsRef.current = 0;
+    myFinalTimeRef.current = null;
+    setDisplayTime('0.00');
+    setTimerLabel('시간:');
+    
+    // GAME START 클릭 시 새로운 보드가 정상 생성되도록 풀 비우기
+    nextNumbersPoolRef.current = []; 
+    setBoard(Array(9).fill(null));
+  };
+
   const handleBackToLobby = async () => {
     clearInterval(mainIntervalRef.current);
 
@@ -865,7 +884,29 @@ export default function App() {
                 <button id="start-btn" onClick={broadcastStartSignal}>GAME START</button>
               </div>
             )}
-          </div>
+            
+            {/* 💡 새로 추가된 싱글 모드 리셋 버튼 */}
+              {gameMode === 'SINGLE' && (gameState === 'RUNNING' || showCountdown) && !showResult && (
+                <div style={{ marginTop: '10px' }}>
+                  <button 
+                    onClick={handleSingleReset} 
+                    style={{
+                      padding: '6px 20px', 
+                      fontSize: '1rem', 
+                      fontWeight: 'bold', 
+                      backgroundColor: '#6c757d', 
+                      color: 'white', 
+                      border: 'none', 
+                      borderRadius: '5px', 
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    🔄 리셋 (다시하기)
+                  </button>
+                </div>
+              )}
+            </div>
 
           <div className="game-layout">
             <div className="my-area">
